@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Play Hub - Main Lobby</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary": "#1a002e",
+              "surface-container-high": "#1a2438",
+              "primary-fixed": "#c8eaff",
+              "on-secondary-fixed": "#0d1f2b",
+              "inverse-on-surface": "#0a0e1a",
+              "on-secondary": "#001f2e",
+              "tertiary-fixed": "#e8d0ff",
+              "inverse-primary": "#0a4c6e",
+              "tertiary-container": "#3d2060",
+              "on-primary-fixed-variant": "#004d73",
+              "on-error": "#1a0000",
+              "inverse-surface": "#e0e8f0",
+              "on-tertiary-container": "#e8d0ff",
+              "primary-fixed-dim": "#7dd3fc",
+              "on-secondary-container": "#c0d8e8",
+              "on-primary-container": "#c8eaff",
+              "primary": "#7dd3fc",
+              "on-surface": "#e0e8f0",
+              "surface-dim": "#0f1524",
+              "on-background": "#e0e8f0",
+              "surface": "#0f1524",
+              "secondary": "#88b4cc",
+              "on-primary-fixed": "#001f2e",
+              "surface-tint": "#7dd3fc",
+              "surface-bright": "#1a2438",
+              "secondary-fixed": "#c0d8e8",
+              "on-secondary-fixed-variant": "#2a4a5e",
+              "secondary-container": "#1a3a4e",
+              "surface-container": "#141c2e",
+              "on-primary": "#001f2e",
+              "on-error-container": "#ffb3b3",
+              "background": "#0a0e1a",
+              "error": "#ff6b6b",
+              "outline": "#4a6070",
+              "surface-container-lowest": "#0a0e1a",
+              "surface-container-highest": "#202c42",
+              "secondary-fixed-dim": "#88b4cc",
+              "outline-variant": "#2a3a48",
+              "on-tertiary-fixed-variant": "#4d2a73",
+              "surface-variant": "#1a2438",
+              "primary-container": "#0e4d6e",
+              "on-surface-variant": "#a0b4c4",
+              "error-container": "#3d1414",
+              "surface-container-low": "#111828",
+              "tertiary": "#c8a0f0",
+              "tertiary-fixed-dim": "#c8a0f0",
+              "on-tertiary-fixed": "#1a002e"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #0a0e1a;
+            color: #e0e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-card {
+            background: rgba(15, 21, 36, 0.6);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(125, 211, 252, 0.1);
+        }
+        .glass-card-elevated {
+            background: rgba(15, 21, 36, 0.75);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(125, 211, 252, 0.15);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-background">
+<!-- TopNavBar -->
+<nav class="bg-slate-950/60 backdrop-blur-xl text-sky-300 font-['Inter'] antialiased tracking-tight fixed top-0 w-full border-b border-sky-400/10 shadow-[0_0_30px_rgba(125,211,252,0.05)] flex justify-between items-center px-6 py-3 z-50">
+<div class="flex items-center gap-8">
+<span class="text-xl font-semibold tracking-tighter text-sky-300">AI Play Hub</span>
+<div class="hidden md:flex gap-6 items-center">
+<a class="text-sky-300 border-b-2 border-sky-400 pb-1" href="#">Arena</a>
+<a class="text-slate-400 hover:text-sky-200 transition-colors" href="#">Leaderboard</a>
+<a class="text-slate-400 hover:text-sky-200 transition-colors" href="#">Market</a>
+<a class="text-slate-400 hover:text-sky-200 transition-colors" href="#">Lounge</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="bg-sky-400/10 px-3 py-1.5 rounded-full flex items-center gap-2 border border-sky-400/20">
+<span class="material-symbols-outlined text-sm" data-icon="account_balance_wallet">account_balance_wallet</span>
+<span class="text-sm font-medium">1,240 Credits</span>
+</div>
+<button class="p-2 text-slate-400 hover:bg-sky-400/10 transition-all duration-300 rounded-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-slate-400 hover:bg-sky-400/10 transition-all duration-300 rounded-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="bg-slate-900/75 backdrop-blur-2xl text-sky-300 font-['Inter'] text-sm font-medium fixed left-4 top-24 bottom-4 w-64 rounded-2xl border border-sky-400/10 shadow-2xl flex flex-col p-4 gap-4 z-40">
+<div class="flex items-center gap-3 p-2 mb-2">
+<div class="w-10 h-10 rounded-full bg-sky-500/20 border border-sky-400/30 overflow-hidden">
+<img alt="Player One" data-alt="close-up portrait of a stylized digital human avatar with subtle glowing blue highlights on cheekbones and dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_71INrRlfkzwoBzf_19f2jBfZ7agX8TCDM2mQ7zuQPxdEJVpmtzG3StghLF_nLGSL3HHlNNV0rdfKrWynXdCpoC-nkhp_kWfblVZY2S-5hPSbW7zvBW3wtzLRH8qJmLjduysB2csT3mLLX_yM88XOFy_3-7p5VnoXRijrLwJcnNaViVznsP7vbR6xxLVv8aSm3RKuZnKIHJSHvIw2N-bGI9x2odiQrrXRJwCRhQM2lIW1uZkSfCMC7L3bGzyVTR1LfL8uqOJQeGMs"/>
+</div>
+<div>
+<p class="font-bold text-sky-300">Player One</p>
+<p class="text-xs text-slate-400">1,240 Credits</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1 flex-1">
+<a class="flex items-center gap-3 p-3 bg-sky-400/20 text-sky-200 rounded-xl hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+                Social Games
+            </a>
+<a class="flex items-center gap-3 p-3 text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="extension">extension</span>
+                Puzzles
+            </a>
+<a class="flex items-center gap-3 p-3 text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="ads_click">ads_click</span>
+                Strategy
+            </a>
+<a class="flex items-center gap-3 p-3 text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="theaters">theaters</span>
+                Roleplay
+            </a>
+<a class="flex items-center gap-3 p-3 text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors hover:translate-x-1 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+                History
+            </a>
+</nav>
+<button class="mt-auto bg-primary text-on-primary py-3 px-4 rounded-xl font-bold hover:bg-sky-200 transition-colors shadow-[0_0_20px_rgba(125,211,252,0.2)] active:scale-95 duration-200">
+            Start Quick Match
+        </button>
+</aside>
+<!-- Main Content -->
+<main class="ml-72 pt-24 px-8 pb-12">
+<!-- Hero Section: Featured Games -->
+<section class="mb-12">
+<h2 class="text-2xl font-semibold mb-6 tracking-tight flex items-center gap-2">
+<span class="w-2 h-8 bg-primary rounded-full"></span>
+                Featured Games
+            </h2>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<!-- AI Mafia Card -->
+<div class="relative h-[400px] rounded-3xl overflow-hidden group cursor-pointer border border-white/10">
+<img alt="AI Mafia" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="cinematic dark scene with mysterious shadowy figures sitting around a glowing digital table with blue holographic interfaces in a futuristic noir setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWgBRK3BKlpN4hqViwJeo7s2VbhWttpHVggH590Bd0WskNjg4_Fdmns0PdpxeZxpNcUXuglkm0s1KN-8lckiEgf2JBGAS6glFgK0tNGwqMpyet0nZY1X3lULxV0OQjG8n2n2dJtshwVMiTCDPJ4hCmyys0QwiTHCkFRgAilI7i0Dc0u5xo2tov2LkPCNuwqiuEtIF7oOhiPTM2iiBASRAlw7u7usW66l5HlJgq9RKMm697H3yD2pBZldhdgvEuAvo-LYSm7BDPfUe5"/>
+<div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full">
+<div class="flex items-center gap-2 mb-3">
+<span class="bg-primary/20 text-primary text-xs font-bold px-3 py-1 rounded-full border border-primary/30 uppercase tracking-widest">Hot</span>
+<span class="text-slate-300 text-xs flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="groups">groups</span>
+                                1.2k playing
+                            </span>
+</div>
+<h3 class="text-4xl font-extrabold text-white mb-2">AI Mafia</h3>
+<p class="text-slate-300 mb-6 max-w-md">Deceive, detect, and survive in this high-stakes social deduction game powered by advanced LLMs.</p>
+<button class="bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2">
+                            Play Now
+                            <span class="material-symbols-outlined" data-icon="play_arrow">play_arrow</span>
+</button>
+</div>
+</div>
+<!-- Word Chain Duel Card -->
+<div class="relative h-[400px] rounded-3xl overflow-hidden group cursor-pointer border border-white/10">
+<img alt="Word Chain Duel" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" data-alt="abstract explosion of glowing 3D letters and geometric shapes floating in a deep purple and cyan cosmic void with soft bokeh lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdZDp9cOTIBHe9CksCKVNV1DpcMPPnxKyb4OYrvn2cjzm9Pxy5eovSF-8a1t8JMH_Qui9jamZgkqr5IbjrXA2Oj5vpSIiXYGQnRqyRNZdAu_ERCaiayolYklV_xYFkbp9juNkAjiG-Unqm3d400rEw25wgdcWFh5AzFrQCUrSndN2Cwz3OyvrYgGXhmk-S7wL9DmUdc_bj1FHWZnGOLGrX28zP2hC_APIVRSvhyprY8fgigj8K6nW_17s4i-UjABMlC8Jvckz8X1Pe"/>
+<div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full">
+<div class="flex items-center gap-2 mb-3">
+<span class="bg-tertiary/20 text-tertiary text-xs font-bold px-3 py-1 rounded-full border border-tertiary/30 uppercase tracking-widest">New</span>
+<span class="text-slate-300 text-xs flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="groups">groups</span>
+                                840 playing
+                            </span>
+</div>
+<h3 class="text-4xl font-extrabold text-white mb-2">Word Chain Duel</h3>
+<p class="text-slate-300 mb-6 max-w-md">Outsmart the AI in a lightning-fast vocabulary battle where every letter counts.</p>
+<button class="bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-semibold transition-all flex items-center gap-2">
+                            Play Now
+                            <span class="material-symbols-outlined" data-icon="play_arrow">play_arrow</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Bento Grid: Trending Games -->
+<section>
+<div class="flex justify-between items-end mb-8">
+<div>
+<h2 class="text-2xl font-semibold tracking-tight">Trending Games</h2>
+<p class="text-on-surface-variant text-sm">Most played titles this hour</p>
+</div>
+<button class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+                    View All
+                    <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Game Card 1 -->
+<div class="glass-card p-4 rounded-2xl group hover:border-primary/40 transition-all duration-300 shadow-[0_0_30px_rgba(125,211,252,0.02)]">
+<div class="relative rounded-xl overflow-hidden mb-4 aspect-video">
+<img alt="Cyber Quest" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="minimalist cybernetic landscape with glowing blue neon lines on a dark matte surface and soft fog" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxod6ijGrlCTmCHAx4mX0a3HB8xNFFaVukloR73sn9cJL6T8gx-QrJomYJVvWZmgWfwljtElKZmPJipn9q4_BpGq64hHKU36tXt2XcoIZXGJK-0foP9v7wLdjuLMH1GlInZ5_84Hq-6QK1U0gL7jezvbbQ4_j9AaNA_6cjsda5S5lJw0CnYPpM77IFmJo4uZnhCHgZjxRoosHwnzu6Ez-AjDJzach5Uh0pMWJnFBau4YUb0W1YN9F1iqaCglaE3KJCaLH5jmfX1XxF"/>
+<div class="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-md rounded-lg px-2 py-1 text-[10px] font-bold text-sky-300 border border-sky-400/20 uppercase">Strategy</div>
+</div>
+<h4 class="font-bold text-white mb-1">Cyber Quest</h4>
+<p class="text-xs text-on-surface-variant mb-4 line-clamp-2">Manage your AI empire and defend against rogue protocols.</p>
+<div class="flex items-center justify-between text-[11px] font-medium text-slate-400 border-t border-white/5 pt-3">
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            432 Active
+                        </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+                            15m avg
+                        </span>
+</div>
+</div>
+<!-- Game Card 2 -->
+<div class="glass-card p-4 rounded-2xl group hover:border-primary/40 transition-all duration-300 shadow-[0_0_30px_rgba(125,211,252,0.02)]">
+<div class="relative rounded-xl overflow-hidden mb-4 aspect-video">
+<img alt="Retro Synth" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="80s retro synthwave aesthetic with a wireframe sunset, digital grid floor and vibrant neon pink and blue lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_05p02xMKtN1AtlOr7Um1u_9O3GcYLT2gIVl82DXBMu8soxkZEemQ7tDt6YIQrLzSSkQSdb2T39tEt2Cg00bJNF8dFByYZC52uBdb6LCLr6rkcAkfMi6mWyYuknEOTfxZi0aCxA5SiX8QyYYMbWnvAsYY0MIcC054L4rBmsGS945vYomXJDCSB9_N8Jo_Sl4_9Xj3wzwD9FuF4PBwY0lJYC2yM5xDCGjxz-huSVmrKL3FXiJj_75LvIfEiMiON-M3eTLwClC9MgR0"/>
+<div class="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-md rounded-lg px-2 py-1 text-[10px] font-bold text-sky-300 border border-sky-400/20 uppercase">Social</div>
+</div>
+<h4 class="font-bold text-white mb-1">Retro Synth</h4>
+<p class="text-xs text-on-surface-variant mb-4 line-clamp-2">Co-create synthwave music with an adaptive AI band leader.</p>
+<div class="flex items-center justify-between text-[11px] font-medium text-slate-400 border-t border-white/5 pt-3">
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            1.1k Active
+                        </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+                            30m avg
+                        </span>
+</div>
+</div>
+<!-- Game Card 3 -->
+<div class="glass-card p-4 rounded-2xl group hover:border-primary/40 transition-all duration-300 shadow-[0_0_30px_rgba(125,211,252,0.02)]">
+<div class="relative rounded-xl overflow-hidden mb-4 aspect-video">
+<img alt="Void Runner" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="first-person view of a high-speed tunnel run through a cosmic void with light trails and distant stars in cool tones" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHV6ONEoVDKvG39VkQZFwawqH3ckCBScqobpFuAVhja6azZ19MyQp2m5QZWVcB5CojslJhS0WRciyq0VKxw55cWsfDGgePeOrXPYCHdeI6JvYkdw1bXYWvwvw9GgW3qOzXU7PPi5AgscQTEuoO3af44mOXOVz4y8Tzgcij1wCFwzqMsMFUB714YHSRfcRRLkcu5rFkiW3OATUl0nicJjX-IeDjhvYte_lGuZHHnA_E3ibks-CjuAuJ_qRv9azHe9C4HUAvmn_LP8d0"/>
+<div class="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-md rounded-lg px-2 py-1 text-[10px] font-bold text-sky-300 border border-sky-400/20 uppercase">Action</div>
+</div>
+<h4 class="font-bold text-white mb-1">Void Runner</h4>
+<p class="text-xs text-on-surface-variant mb-4 line-clamp-2">Navigate the data stream in this procedurally generated rhythm game.</p>
+<div class="flex items-center justify-between text-[11px] font-medium text-slate-400 border-t border-white/5 pt-3">
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            2.4k Active
+                        </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+                            5m avg
+                        </span>
+</div>
+</div>
+<!-- Game Card 4 -->
+<div class="glass-card p-4 rounded-2xl group hover:border-primary/40 transition-all duration-300 shadow-[0_0_30px_rgba(125,211,252,0.02)]">
+<div class="relative rounded-xl overflow-hidden mb-4 aspect-video">
+<img alt="Mind Maze" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="surrealist maze built from floating geometric white blocks in a vast empty space with ethereal blue lighting and soft shadows" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBuszKOfmvBpCLR7tnwWI5xnlDns8-T7RceSTYcFrtZcsTtHFRwOKRYaASH-cPQ3-09Un51ANd0GEdw0LgwP0jULjz-qsc8gNROi20y8a-WC6aSfrHjP0SxcwuJWQyYmlnHS-jmFRxsyzw4jZznCDjBpFRhqxUQ-V2JR8wr_5aIoyK2o1wmeliMuPDE-3yHDqQX3yXS2zD8cbfSknOCrQZZfxIdMgOK5NldZjwX7jF0t2rX3LVCrNYCF5ZHCtz-kFmFN8Gd4OdaT64A"/>
+<div class="absolute top-2 right-2 bg-slate-900/80 backdrop-blur-md rounded-lg px-2 py-1 text-[10px] font-bold text-sky-300 border border-sky-400/20 uppercase">Puzzle</div>
+</div>
+<h4 class="font-bold text-white mb-1">Mind Maze</h4>
+<p class="text-xs text-on-surface-variant mb-4 line-clamp-2">Solve recursive logic puzzles designed by the Hub's core AI engine.</p>
+<div class="flex items-center justify-between text-[11px] font-medium text-slate-400 border-t border-white/5 pt-3">
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            94 Active
+                        </span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+                            45m avg
+                        </span>
+</div>
+</div>
+</div>
+</section>
+<!-- Stats Section -->
+<section class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="glass-card-elevated p-6 rounded-2xl flex items-center gap-6">
+<div class="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="military_tech">military_tech</span>
+</div>
+<div>
+<p class="text-on-surface-variant text-xs uppercase tracking-widest font-bold">Global Rank</p>
+<h4 class="text-2xl font-bold text-white">#4,210</h4>
+</div>
+</div>
+<div class="glass-card-elevated p-6 rounded-2xl flex items-center gap-6">
+<div class="w-12 h-12 rounded-xl bg-tertiary/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="bolt">bolt</span>
+</div>
+<div>
+<p class="text-on-surface-variant text-xs uppercase tracking-widest font-bold">Total Wins</p>
+<h4 class="text-2xl font-bold text-white">128</h4>
+</div>
+</div>
+<div class="glass-card-elevated p-6 rounded-2xl flex items-center gap-6">
+<div class="w-12 h-12 rounded-xl bg-sky-400/20 flex items-center justify-center text-sky-300">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+</div>
+<div>
+<p class="text-on-surface-variant text-xs uppercase tracking-widest font-bold">AI Affinity</p>
+<h4 class="text-2xl font-bold text-white">82%</h4>
+</div>
+</div>
+</section>
+</main>
+<!-- FAB -->
+<button class="fixed bottom-8 right-8 w-16 h-16 bg-primary text-on-primary rounded-full shadow-[0_0_40px_rgba(125,211,252,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 z-50">
+<span class="material-symbols-outlined text-3xl" data-icon="chat_bubble">chat_bubble</span>
+</button>
+</body></html>
