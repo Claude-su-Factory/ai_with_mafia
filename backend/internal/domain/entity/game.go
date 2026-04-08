@@ -24,6 +24,7 @@ const (
 	EventGameOver      GameEventType = "game_over"
 	EventMafiaChat     GameEventType = "mafia_chat"
 	EventTimerUpdate   GameEventType = "timer_update"
+	EventMafiaChannelOpen GameEventType = "mafia_channel_open"
 )
 
 type GameEvent struct {
