@@ -8,7 +8,6 @@ const T = {
   accent: '#C4963A', text: '#ECE7DE', textMuted: '#786F62', danger: '#8C1F1F',
 }
 const SERIF = "'Instrument Serif', Georgia, serif"
-const SANS  = "'DM Sans', system-ui, sans-serif"
 const MONO  = "'JetBrains Mono', monospace"
 
 const PHASE_LABELS: Record<Phase, string> = {

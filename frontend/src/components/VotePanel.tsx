@@ -6,7 +6,6 @@ const T = {
   text: '#ECE7DE', textMuted: '#786F62', textDim: '#4A4438',
   danger: '#8C1F1F', dangerDim: 'rgba(140,31,31,0.18)',
 }
-const SERIF = "'Instrument Serif', Georgia, serif"
 const SANS  = "'DM Sans', system-ui, sans-serif"
 const MONO  = "'JetBrains Mono', monospace"
 
@@ -25,7 +24,7 @@ export default function VotePanel() {
   const totalVotes = Object.values(voteCounts).reduce((a, b) => a + b, 0)
 
   function handleVote(targetID: string) {
-    sendAction('vote', { target_id: targetID })
+    sendAction('vote', { vote: { target_id: targetID } })
   }
 
   return (

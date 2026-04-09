@@ -11,7 +11,7 @@ const SANS  = "'DM Sans', system-ui, sans-serif"
 const MONO  = "'JetBrains Mono', monospace"
 
 function ActionButton({
-  label, color, dimBg, onClick,
+  label, color: _color, dimBg, onClick,
 }: { label: string; color: string; dimBg: string; onClick: () => void }) {
   return (
     <button

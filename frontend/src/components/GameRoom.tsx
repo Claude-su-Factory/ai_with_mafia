@@ -44,7 +44,7 @@ export default function GameRoom() {
   function handleMafiaChat() {
     const trimmed = mafiaText.trim()
     if (!trimmed) return
-    sendAction('chat', { message: trimmed, mafia_only: true })
+    sendAction('chat', { chat: { message: trimmed, mafia_only: true } })
     setMafiaText('')
   }
 
