@@ -41,6 +41,7 @@ type GameManager struct {
 type activeGame struct {
 	game   entity.Game
 	cancel context.CancelFunc
+	ctx    context.Context // 신규
 }
 
 func NewGameManager(
@@ -171,29 +172,6 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 		room.SetStatus(entity.RoomStatusFinished)
 		gm.logger.Info("game finished", zap.String("room_id", room.ID))
 
-		// Drain any events still in the channel (e.g. EventGameOver) before
-		// cancelling the context. Without this, the event goroutine's select
-		// can choose gameCtx.Done() over the event channel when both are ready,
-		// silently dropping the game-over notification.
-	drain:
-		for {
-			select {
-			case event := <-game.Subscribe():
-				gm.ai.BroadcastEvent(room.ID, event)
-				if event.Type == entity.EventPhaseChange {
-					go gm.ai.SaveHistories(context.Background(), room.ID)
-				}
-				if event.Type == entity.EventGameOver {
-					go gm.saveGameResult(room, event, startedAt)
-				}
-				if gm.GameEventFunc != nil {
-					gm.GameEventFunc(room.ID, event)
-				}
-			default:
-				break drain
-			}
-		}
-
 		cancelGame()
 
 		// Release leader lock and delete checkpoint
@@ -207,7 +185,6 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 			}
 		}
 
-		// Remove game from active map so it doesn't grow unboundedly.
 		gm.mu.Lock()
 		delete(gm.activeGames, room.ID)
 		gm.mu.Unlock()
@@ -220,12 +197,10 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 			case event := <-game.Subscribe():
 				gm.ai.BroadcastEvent(room.ID, event)
 
-				// Phase change → checkpoint AI histories
 				if event.Type == entity.EventPhaseChange {
 					go gm.ai.SaveHistories(context.Background(), room.ID)
 				}
 
-				// Game over → save result
 				if event.Type == entity.EventGameOver {
 					go gm.saveGameResult(room, event, startedAt)
 				}
@@ -233,13 +208,28 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 				if gm.GameEventFunc != nil {
 					gm.GameEventFunc(room.ID, event)
 				}
+
 			case <-gameCtx.Done():
-				return
+				// Drain remaining events after context cancellation
+				for {
+					select {
+					case event := <-game.Subscribe():
+						gm.ai.BroadcastEvent(room.ID, event)
+						if event.Type == entity.EventGameOver {
+							go gm.saveGameResult(room, event, startedAt)
+						}
+						if gm.GameEventFunc != nil {
+							gm.GameEventFunc(room.ID, event)
+						}
+					default:
+						return
+					}
+				}
 			}
 		}
 	}()
 
-	gm.activeGames[room.ID] = activeGame{game: game, cancel: cancelGame}
+	gm.activeGames[room.ID] = activeGame{game: game, cancel: cancelGame, ctx: gameCtx}
 	return nil
 }
 
@@ -399,4 +389,31 @@ func (gm *GameManager) NotifyEvent(roomID string, event entity.GameEvent) {
 			zap.String("action", req.Type),
 			zap.Error(err))
 	}
+}
+
+// StopGame cancels the active game context for roomID, stopping the game engine.
+// Used when all human players have left (spec #3).
+func (gm *GameManager) StopGame(roomID string) {
+	gm.mu.Lock()
+	ag, ok := gm.activeGames[roomID]
+	if ok {
+		ag.cancel()
+		delete(gm.activeGames, roomID)
+	}
+	gm.mu.Unlock()
+}
+
+// ReplaceWithAI spawns a new AI agent to take over a human player's slot.
+// Called when a human player disconnects during an active game (spec #7).
+func (gm *GameManager) ReplaceWithAI(roomID, playerID string, role entity.Role) error {
+	gm.mu.Lock()
+	ag, ok := gm.activeGames[roomID]
+	gm.mu.Unlock()
+	if !ok {
+		return nil
+	}
+
+	personas := gm.personaPool.Assign(1)
+	gm.ai.AddAgent(ag.ctx, roomID, playerID, role, personas[0])
+	return nil
 }
