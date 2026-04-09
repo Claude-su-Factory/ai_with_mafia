@@ -99,6 +99,13 @@ func (a *Agent) handleEvent(ctx context.Context, event entity.GameEvent) {
 		if a.Role == entity.RoleMafia {
 			a.onMafiaChat(ctx, event)
 		}
+	case entity.EventMafiaChannelOpen:
+		msg, _ := event.Payload["message"].(string)
+		if msg != "" {
+			a.addHistory(anthropic.NewUserMessage(anthropic.NewTextBlock(
+				"[시스템]: " + msg,
+			)))
+		}
 	}
 }
 
@@ -173,12 +180,12 @@ func (a *Agent) onPhaseChange(ctx context.Context, event entity.GameEvent) {
 }
 
 func (a *Agent) openDiscussion(ctx context.Context, event entity.GameEvent) {
-	round, _ := event.Payload["round"].(float64)
+	round, _ := event.Payload["round"].(int)
 	var prompt string
 	if round <= 1 {
 		prompt = "낮 토론이 시작됐습니다. 게임 첫 라운드입니다. 자연스럽게 첫 인사나 의견을 한 문장으로 말하세요."
 	} else {
-		prompt = fmt.Sprintf("낮 토론 %d라운드가 시작됐습니다. 지금까지의 대화를 바탕으로 의심되는 점이나 관찰을 한 문장으로 말하세요.", int(round))
+		prompt = fmt.Sprintf("낮 토론 %d라운드가 시작됐습니다. 지금까지의 대화를 바탕으로 의심되는 점이나 관찰을 한 문장으로 말하세요.", round)
 	}
 
 	reply := a.callLLM(ctx, a.cfg.ModelDefault, prompt)
