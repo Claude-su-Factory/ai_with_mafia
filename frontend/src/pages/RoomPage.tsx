@@ -1,14 +1,32 @@
-import { useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useCallback } from 'react'
+import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import WaitingRoom from '../components/WaitingRoom'
 import GameRoom from '../components/GameRoom'
 import ResultOverlay from '../components/ResultOverlay'
+import LeaveConfirmModal from '../components/LeaveConfirmModal'
 
 export default function RoomPage() {
   const { id: roomID } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { connect, disconnect, room, result } = useGameStore()
+
+  // Block navigation only when game is actively playing and no result yet
+  const shouldBlock = room?.status === 'playing' && !result
+
+  const blocker = useBlocker(shouldBlock)
+
+  // Handle browser tab close / refresh
+  useEffect(() => {
+    if (!shouldBlock) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [shouldBlock])
 
   useEffect(() => {
     if (!roomID) return
@@ -22,6 +40,19 @@ export default function RoomPage() {
       disconnect()
     }
   }, [roomID])
+
+  const handleLeaveConfirm = useCallback(() => {
+    disconnect()
+    if (blocker.state === 'blocked') {
+      blocker.proceed()
+    }
+  }, [blocker, disconnect])
+
+  const handleLeaveCancel = useCallback(() => {
+    if (blocker.state === 'blocked') {
+      blocker.reset()
+    }
+  }, [blocker])
 
   if (!room) {
     return (
@@ -39,6 +70,11 @@ export default function RoomPage() {
         <GameRoom />
       )}
       {result && <ResultOverlay />}
+      <LeaveConfirmModal
+        isOpen={blocker.state === 'blocked'}
+        onConfirm={handleLeaveConfirm}
+        onCancel={handleLeaveCancel}
+      />
     </div>
   )
 }
