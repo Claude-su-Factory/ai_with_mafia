@@ -135,9 +135,13 @@ func (m *Manager) SpawnAgents(ctx context.Context, roomID string, players []*ent
 					if !ok {
 						return
 					}
-					m.semaphore <- struct{}{}
-					m.handleOutput(rID, out)
-					<-m.semaphore
+					select {
+					case m.semaphore <- struct{}{}:
+						m.handleOutput(rID, out)
+						<-m.semaphore
+					case <-ctx.Done():
+						return
+					}
 				case <-ctx.Done():
 					return
 				}
@@ -170,6 +174,67 @@ func (m *Manager) handleOutput(roomID string, out AgentOutput) {
 			m.broadcast(roomID, out.PlayerID, out.PlayerName, out.Message, out.MafiaOnly)
 		}
 	}
+}
+
+// AddAgent creates and starts a single AI agent at runtime (e.g. mid-game AI backfill).
+func (m *Manager) AddAgent(ctx context.Context, roomID string, playerID string, role entity.Role, persona Persona) {
+	m.mu.Lock()
+
+	// Collect mafia allies from existing agents in this room
+	mafiaIDs := make([]string, 0)
+	if agents, ok := m.agents[roomID]; ok {
+		for pid, a := range agents {
+			if a.Role == entity.RoleMafia {
+				mafiaIDs = append(mafiaIDs, pid)
+			}
+		}
+	}
+	// If the new agent is mafia, it should also be in the allies list for existing agents
+	if role == entity.RoleMafia {
+		mafiaIDs = append(mafiaIDs, playerID)
+	}
+
+	// Build allies list for the new agent (exclude self)
+	allies := make([]string, 0)
+	if role == entity.RoleMafia {
+		for _, id := range mafiaIDs {
+			if id != playerID {
+				allies = append(allies, id)
+			}
+		}
+	}
+
+	a := NewAgent(playerID, persona, role, allies, m.cfg, m.client, m.logger)
+
+	if m.agents[roomID] == nil {
+		m.agents[roomID] = make(map[string]*Agent)
+	}
+	m.agents[roomID][playerID] = a
+
+	m.mu.Unlock()
+
+	// Start output consumer goroutine (same pattern as SpawnAgents)
+	go func(agent *Agent, rID string, ctx context.Context) {
+		for {
+			select {
+			case out, ok := <-agent.Output():
+				if !ok {
+					return
+				}
+				select {
+				case m.semaphore <- struct{}{}:
+					m.handleOutput(rID, out)
+					<-m.semaphore
+				case <-ctx.Done():
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}(a, roomID, ctx)
+
+	go a.Run(ctx)
 }
 
 // BroadcastEvent sends a game event to all AI agents in a room.
