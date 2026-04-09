@@ -54,6 +54,8 @@ type GameManager interface {
 	NotifyEvent(roomID string, event entity.GameEvent)
 	TryRecover(ctx context.Context, roomID string)
 	GetSnapshot(roomID string) *dto.GameSnapshot
+	StopGame(roomID string)
+	ReplaceWithAI(roomID, playerID string, role entity.Role) error
 }
 
 func NewHub(ctx context.Context, rooms RoomService, games GameManager, logger *zap.Logger, rdb *redis.Client, instanceID string, graceSec int) *Hub {
@@ -115,7 +117,20 @@ func (h *Hub) startGraceTimer(c *Client) {
 }
 
 // doRemove removes the player from the room service and notifies via Pub/Sub.
+// If the game is in progress, the leaving player is replaced with an AI agent.
+// If all human players have left, the game is stopped and the room is cleaned up.
 func (h *Hub) doRemove(roomID, playerID string) {
+	// Capture the player's role and game status BEFORE removal
+	// (role is needed for AI replacement, status to know if game is active).
+	var playerRole entity.Role
+	var wasPlaying bool
+	if preRoom, err := h.roomService.GetByID(roomID); err == nil && preRoom != nil {
+		if p := preRoom.PlayerByID(playerID); p != nil {
+			playerRole = p.Role
+		}
+		wasPlaying = preRoom.GetStatus() == entity.RoomStatusPlaying
+	}
+
 	room := h.roomService.RemovePlayer(roomID, playerID)
 
 	// Notify other instances
@@ -134,24 +149,33 @@ func (h *Hub) doRemove(roomID, playerID string) {
 	}
 
 	if room == nil {
-		return
-	}
-
-	// AI 대체 알림 브로드캐스트
-	h.Broadcast(roomID, dto.GameEventDTO{
-		Type: string(entity.EventPlayerReplaced),
-		Payload: map[string]any{
-			"player_id": playerID,
-			"message":   "플레이어가 이탈하여 AI로 대체됩니다.",
-		},
-	}, false)
-
-	// 사람 플레이어가 없으면 게임 종료
-	if room.HumanCount() == 0 {
+		// All humans left — stop game and broadcast game over.
+		h.gameManager.StopGame(roomID)
 		h.Broadcast(roomID, dto.GameEventDTO{
 			Type:    string(entity.EventGameOver),
 			Payload: map[string]any{"reason": "all_humans_left"},
 		}, false)
+		return
+	}
+
+	// If game is in progress, replace the leaving player with an AI agent.
+	if wasPlaying && playerRole != "" {
+		h.Broadcast(roomID, dto.GameEventDTO{
+			Type: string(entity.EventPlayerReplaced),
+			Payload: map[string]any{
+				"player_id": playerID,
+				"message":   "플레이어가 이탈하여 AI로 대체됩니다.",
+			},
+		}, false)
+
+		go func() {
+			if err := h.gameManager.ReplaceWithAI(roomID, playerID, playerRole); err != nil {
+				h.logger.Error("ReplaceWithAI failed",
+					zap.String("room_id", roomID),
+					zap.String("player_id", playerID),
+					zap.Error(err))
+			}
+		}()
 	}
 }
 
