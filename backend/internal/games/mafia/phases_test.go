@@ -1,6 +1,7 @@
 package mafia
 
 import (
+	"context"
 	"testing"
 
 	"go.uber.org/zap"
@@ -353,5 +354,60 @@ func TestRecordMafiaKill_NonMafiaIgnored(t *testing.T) {
 
 	if _, ok := pm.state.NightKills["c1"]; ok {
 		t.Error("non-mafia player's kill should be silently ignored")
+	}
+}
+
+// --- RunNight event structure ---
+
+func TestRunNight_EmitsSinglePhaseChangeWithAlivePlayers(t *testing.T) {
+	players := newTestPlayers()
+	pm, eventCh := newTestPM(players)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancelled immediately so night ends right away
+
+	pm.state.mu.Lock()
+	pm.state.Phase = entity.PhaseNight
+	pm.state.Round = 2
+	pm.state.mu.Unlock()
+
+	pm.RunNight(ctx)
+
+	events := drainEvents(eventCh)
+
+	var phaseChanges, mafiaChannelOpens []entity.GameEvent
+	for _, e := range events {
+		switch e.Type {
+		case entity.EventPhaseChange:
+			phaseChanges = append(phaseChanges, e)
+		case entity.EventMafiaChannelOpen:
+			mafiaChannelOpens = append(mafiaChannelOpens, e)
+		}
+	}
+
+	if len(phaseChanges) != 1 {
+		t.Errorf("expected exactly 1 EventPhaseChange, got %d", len(phaseChanges))
+	}
+	if len(mafiaChannelOpens) != 1 {
+		t.Errorf("expected exactly 1 EventMafiaChannelOpen, got %d", len(mafiaChannelOpens))
+	}
+
+	if len(phaseChanges) > 0 && phaseChanges[0].MafiaOnly {
+		t.Error("EventPhaseChange should not be MafiaOnly")
+	}
+
+	if len(phaseChanges) > 0 {
+		ap, ok := phaseChanges[0].Payload["alive_players"]
+		if !ok {
+			t.Error("EventPhaseChange payload must contain alive_players")
+		}
+		ids, ok := ap.([]string)
+		if !ok || len(ids) == 0 {
+			t.Error("alive_players must be a non-empty []string")
+		}
+	}
+
+	if len(mafiaChannelOpens) > 0 && !mafiaChannelOpens[0].MafiaOnly {
+		t.Error("EventMafiaChannelOpen must be MafiaOnly")
 	}
 }

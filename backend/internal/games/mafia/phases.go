@@ -220,25 +220,23 @@ func (pm *PhaseManager) RunNight(ctx context.Context) {
 
 	pm.save(ctx)
 
-	// 마피아 채널 오픈
+	// 전체 대상 phase_change (alive_players 포함)
 	pm.emit(entity.GameEvent{
-		Type:      entity.EventPhaseChange,
-		MafiaOnly: true,
+		Type: entity.EventPhaseChange,
 		Payload: map[string]any{
 			"phase":         string(entity.PhaseNight),
 			"duration":      int(pm.timers.Night.Seconds()),
 			"alive_players": pm.aliveIDs(),
-			"message":       "밤이 되었습니다. 처치할 대상을 상의하세요.",
 			"round":         pm.state.Round,
 		},
 	})
-	// 시민에게는 밤 시작만 알림
+
+	// 마피아 전용 채널 오픈 알림
 	pm.emit(entity.GameEvent{
-		Type: entity.EventPhaseChange,
+		Type:      entity.EventMafiaChannelOpen,
+		MafiaOnly: true,
 		Payload: map[string]any{
-			"phase":    string(entity.PhaseNight),
-			"duration": int(pm.timers.Night.Seconds()),
-			"round":    pm.state.Round,
+			"message": "밤이 되었습니다. 처치할 대상을 상의하세요.",
 		},
 	})
 
