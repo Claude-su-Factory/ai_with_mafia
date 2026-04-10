@@ -160,7 +160,9 @@ func (h *Hub) doRemove(roomID, playerID string) {
 		return
 	}
 
-	// If game is in progress, replace the leaving player with an AI agent.
+	// If the game is in progress, replace the leaving player with an AI agent.
+	// IMPORTANT: return here prevents the player_left broadcast below from firing
+	// for game-playing exits — only waiting room exits should send player_left.
 	if wasPlaying && playerRole != "" {
 		h.Broadcast(roomID, dto.GameEventDTO{
 			Type: string(entity.EventPlayerReplaced),
@@ -178,10 +180,10 @@ func (h *Hub) doRemove(roomID, playerID string) {
 					zap.Error(err))
 			}
 		}()
-		return
+		return // Prevents player_left broadcast below
 	}
 
-	// 대기실 퇴장 — player_left broadcast
+	// Waiting room exit — broadcast player departure to remaining clients.
 	h.Broadcast(roomID, dto.GameEventDTO{
 		Type: string(entity.EventPlayerLeft),
 		Payload: map[string]any{
@@ -479,7 +481,9 @@ func (h *Hub) ServeWS(c *websocket.Conn, roomID, playerID string) {
 		return
 	}
 
-	// 같은 방 모든 클라이언트에게 입장 알림 (자기 자신 포함 — 프론트엔드에서 필터링)
+	// Notify all room clients of the new arrival (including self — frontend filters self-join events).
+	// The write goroutine for this client hasn't started yet, but the 256-capacity send channel
+	// buffers the message safely until the goroutine begins consuming.
 	h.Broadcast(roomID, dto.GameEventDTO{
 		Type: string(entity.EventPlayerJoined),
 		Payload: map[string]any{
