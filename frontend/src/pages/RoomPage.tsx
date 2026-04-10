@@ -5,6 +5,7 @@ import WaitingRoom from '../components/WaitingRoom'
 import GameRoom from '../components/GameRoom'
 import ResultOverlay from '../components/ResultOverlay'
 import LeaveConfirmModal from '../components/LeaveConfirmModal'
+import CinematicOverlay from '../components/CinematicOverlay'
 
 export default function RoomPage() {
   const { id: roomID } = useParams<{ id: string }>()
@@ -70,6 +71,7 @@ export default function RoomPage() {
         <GameRoom />
       )}
       {result && <ResultOverlay />}
+      <CinematicOverlay />
       <LeaveConfirmModal
         isOpen={blocker.state === 'blocked'}
         onConfirm={handleLeaveConfirm}
