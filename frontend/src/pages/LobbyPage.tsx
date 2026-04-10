@@ -196,7 +196,7 @@ export default function LobbyPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: SANS }}>
+    <div style={{ minHeight: '100dvh', background: T.bg, color: T.text, fontFamily: SANS }}>
 
       {/* ── Nav ────────────────────────────────────────────────────────── */}
       <nav style={{

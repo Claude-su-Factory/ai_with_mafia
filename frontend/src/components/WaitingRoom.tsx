@@ -50,7 +50,7 @@ export default function WaitingRoom() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: T.bg, color: T.text, fontFamily: SANS,
+      minHeight: '100dvh', background: T.bg, color: T.text, fontFamily: SANS,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '32px',
     }}>

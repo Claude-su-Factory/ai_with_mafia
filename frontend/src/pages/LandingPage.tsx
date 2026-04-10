@@ -283,7 +283,7 @@ export default function LandingPage() {
 
   return (
     <div
-      style={{ background: T.bg, color: T.text, fontFamily: FONT_SANS, minHeight: '100vh', position: 'relative' }}
+      style={{ background: T.bg, color: T.text, fontFamily: FONT_SANS, minHeight: '100dvh', position: 'relative' }}
       onMouseMove={handleMouseMove}
     >
 
@@ -331,7 +331,7 @@ export default function LandingPage() {
 
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <section style={{
-        minHeight:     'calc(100vh - 73px)',
+        minHeight:     'calc(100dvh - 73px)',
         display:       'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding:       '80px 48px 0', textAlign: 'center', position: 'relative',
         overflow:      'hidden',

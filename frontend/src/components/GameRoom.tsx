@@ -52,7 +52,7 @@ export default function GameRoom() {
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', height: '100vh',
+      display: 'flex', flexDirection: 'column', height: '100dvh',
       background: T.bg, color: T.text, fontFamily: SANS,
     }}>
 
