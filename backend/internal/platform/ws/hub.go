@@ -123,10 +123,12 @@ func (h *Hub) doRemove(roomID, playerID string) {
 	// Capture the player's role and game status BEFORE removal
 	// (role is needed for AI replacement, status to know if game is active).
 	var playerRole entity.Role
+	var playerName string
 	var wasPlaying bool
 	if preRoom, err := h.roomService.GetByID(roomID); err == nil && preRoom != nil {
 		if p := preRoom.PlayerByID(playerID); p != nil {
 			playerRole = p.Role
+			playerName = p.Name
 		}
 		wasPlaying = preRoom.GetStatus() == entity.RoomStatusPlaying
 	}
@@ -176,7 +178,17 @@ func (h *Hub) doRemove(roomID, playerID string) {
 					zap.Error(err))
 			}
 		}()
+		return
 	}
+
+	// 대기실 퇴장 — player_left broadcast
+	h.Broadcast(roomID, dto.GameEventDTO{
+		Type: string(entity.EventPlayerLeft),
+		Payload: map[string]any{
+			"player_id":   playerID,
+			"player_name": playerName,
+		},
+	}, false)
 }
 
 // Broadcast sends a message to all local clients in a room and relays via Redis Pub/Sub.
@@ -466,6 +478,15 @@ func (h *Hub) ServeWS(c *websocket.Conn, roomID, playerID string) {
 			zap.Error(err))
 		return
 	}
+
+	// 같은 방 모든 클라이언트에게 입장 알림 (자기 자신 포함 — 프론트엔드에서 필터링)
+	h.Broadcast(roomID, dto.GameEventDTO{
+		Type: string(entity.EventPlayerJoined),
+		Payload: map[string]any{
+			"player_id":   playerID,
+			"player_name": player.Name,
+		},
+	}, false)
 
 	// 쓰기 goroutine
 	ctx, cancel := context.WithCancel(h.serverCtx)
