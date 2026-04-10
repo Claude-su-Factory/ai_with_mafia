@@ -64,3 +64,5 @@ export type WsEvent =
   | { type: 'night_action'; payload: { type: string; target_id: string; is_mafia: boolean } }
   | { type: 'game_over'; payload: GameOverResult }
   | { type: 'player_replaced'; payload: { player_id: string; message: string } }
+  | { type: 'player_joined'; payload: { player_id: string; player_name: string } }
+  | { type: 'player_left'; payload: { player_id: string; player_name: string } }

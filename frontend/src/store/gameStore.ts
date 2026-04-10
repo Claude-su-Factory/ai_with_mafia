@@ -249,6 +249,59 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }))
           break
         }
+
+        case 'player_joined': {
+          const { player_id, player_name } = event.payload
+          // 자기 자신의 입장 이벤트는 무시 (initial_state로 이미 처리됨)
+          if (player_id === get().playerID) break
+          set((s) => ({
+            room: s.room
+              ? {
+                  ...s.room,
+                  players: s.room.players.some((p) => p.id === player_id)
+                    ? s.room.players
+                    : [
+                        ...s.room.players,
+                        { id: player_id, name: player_name, is_alive: true, is_ai: false },
+                      ],
+                }
+              : null,
+            messages: [
+              ...s.messages,
+              {
+                id: `${Date.now()}-${Math.random()}`,
+                player_id: 'system',
+                message: `${player_name}님이 입장했습니다.`,
+                mafia_only: false,
+                is_system: true,
+              },
+            ],
+          }))
+          break
+        }
+
+        case 'player_left': {
+          const { player_id, player_name } = event.payload
+          set((s) => ({
+            room: s.room
+              ? {
+                  ...s.room,
+                  players: s.room.players.filter((p) => p.id !== player_id),
+                }
+              : null,
+            messages: [
+              ...s.messages,
+              {
+                id: `${Date.now()}-${Math.random()}`,
+                player_id: 'system',
+                message: `${player_name}님이 퇴장했습니다.`,
+                mafia_only: false,
+                is_system: true,
+              },
+            ],
+          }))
+          break
+        }
       }
     }
 
