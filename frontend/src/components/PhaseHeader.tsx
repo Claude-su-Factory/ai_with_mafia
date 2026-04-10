@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import type { Phase } from '../types'
 import { prepare, layout } from '@chenglou/pretext'
@@ -9,6 +9,49 @@ const T = {
 }
 const SERIF = "'Instrument Serif', Georgia, serif"
 const MONO  = "'JetBrains Mono', monospace"
+
+function FullscreenButton() {
+  const [isFull, setIsFull] = useState(false)
+
+  useEffect(() => {
+    const handler = () => setIsFull(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  function toggle() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      style={{
+        background: 'transparent',
+        border: '1px solid #2E2820',
+        borderRadius: '2px',
+        color: '#786F62',
+        fontFamily: MONO,
+        fontSize: '14px',
+        width: '28px',
+        height: '28px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        transition: 'border-color 150ms ease, color 150ms ease',
+        flexShrink: 0,
+      }}
+      title={isFull ? '풀스크린 해제' : '풀스크린'}
+    >
+      {isFull ? '✕' : '⛶'}
+    </button>
+  )
+}
 
 const PHASE_LABELS: Record<Phase, string> = {
   day_discussion: '낮 — 토론',
@@ -72,17 +115,20 @@ export default function PhaseHeader() {
         </span>
       </div>
 
-      {/* Right: timer */}
-      {timerRemainingSec > 0 && (
-        <span style={{
-          fontFamily: MONO, fontSize: '28px', letterSpacing: '-0.02em',
-          color: isUrgent ? T.danger : T.accent,
-          transition: 'color 300ms ease',
-          fontVariantNumeric: 'tabular-nums',
-        }}>
-          {timerStr}
-        </span>
-      )}
+      {/* Right: timer + fullscreen */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {timerRemainingSec > 0 && (
+          <span style={{
+            fontFamily: MONO, fontSize: '28px', letterSpacing: '-0.02em',
+            color: isUrgent ? T.danger : T.accent,
+            transition: 'color 300ms ease',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {timerStr}
+          </span>
+        )}
+        <FullscreenButton />
+      </div>
     </div>
   )
 }
