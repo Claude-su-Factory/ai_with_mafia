@@ -81,9 +81,9 @@ function startTimer(get: () => GameStore, set: (partial: Partial<GameStore>) => 
 }
 
 function buildPhaseOverlay(
-  phase: string,
+  phase: Phase,
   round: number | undefined,
-  myRole: string,
+  myRole: Role,
 ): OverlayItem | null {
   const r = round !== undefined ? `Round ${round}` : undefined
 
