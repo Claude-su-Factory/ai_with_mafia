@@ -19,6 +19,7 @@ const (
 	EventVote          GameEventType = "vote"
 	EventKill          GameEventType = "kill"
 	EventNightAction   GameEventType = "night_action"
+	EventPlayerJoined   GameEventType = "player_joined"
 	EventPlayerLeft    GameEventType = "player_left"
 	EventPlayerReplaced GameEventType = "player_replaced"
 	EventGameOver      GameEventType = "game_over"
