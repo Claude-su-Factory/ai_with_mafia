@@ -120,28 +120,16 @@ export default function GameRoom() {
           )}
         </main>
 
-        {/* Right: action panel (280px) */}
-        <aside style={{
-          width: '280px', flexShrink: 0,
-          display: 'flex', flexDirection: 'column',
-        }}>
-          {phase === 'day_vote' && <VotePanel />}
-          {phase === 'night' && <NightPanel />}
-          {(phase === 'day_discussion' || !phase) && (
-            <div style={{
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              height: '100%', padding: '32px 24px', textAlign: 'center', gap: '8px',
-            }}>
-              <div style={{ fontFamily: MONO, fontSize: '10px', color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                토론 페이즈
-              </div>
-              <div style={{ fontFamily: SANS, fontSize: '13px', color: T.textMuted }}>
-                채팅을 통해 의심스러운 플레이어를 찾아내세요.
-              </div>
-            </div>
-          )}
-        </aside>
+        {/* Right: action panel (280px) — hidden during day_discussion */}
+        {phase !== 'day_discussion' && (
+          <aside style={{
+            width: '280px', flexShrink: 0,
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {phase === 'day_vote' && <VotePanel />}
+            {phase === 'night' && <NightPanel />}
+          </aside>
+        )}
       </div>
     </div>
   )
