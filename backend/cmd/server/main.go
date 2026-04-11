@@ -238,7 +238,14 @@ func recoverOrphanGames(
 	for _, state := range states {
 		room, err := roomSvc.GetByID(state.RoomID)
 		if err != nil {
-			logger.Warn("recoverOrphanGames: room not found", zap.String("room_id", state.RoomID))
+			// Room no longer exists — delete the orphan game_state to prevent repeated warnings on restart.
+			if delErr := gameStateRepo.Delete(ctx, state.RoomID); delErr != nil {
+				logger.Warn("recoverOrphanGames: failed to delete orphan state",
+					zap.String("room_id", state.RoomID), zap.Error(delErr))
+			} else {
+				logger.Info("recoverOrphanGames: deleted orphan game state",
+					zap.String("room_id", state.RoomID))
+			}
 			continue
 		}
 
