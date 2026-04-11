@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import { restartGame } from '../api'
 import type { Role } from '../types'
+import AdBanner from './AdBanner'
 
 const T = {
   bg: '#0E0C09', surface: '#181410', surfaceHigh: '#221E17', surfaceBorder: '#2E2820',
@@ -163,6 +164,11 @@ export default function ResultOverlay() {
             )
           })}
         </div>
+
+        <AdBanner
+          slotId={import.meta.env.VITE_ADSENSE_SLOT_RESULT}
+          style={{ marginTop: '24px', marginBottom: '16px', marginLeft: '24px', marginRight: '24px' }}
+        />
 
         {/* Action buttons */}
         <div style={{

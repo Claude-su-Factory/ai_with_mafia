@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { startGame } from '../api'
+import AdBanner from './AdBanner'
 
 const T = {
   bg: '#0E0C09', surface: '#181410', surfaceHigh: '#221E17', surfaceBorder: '#2E2820',
@@ -134,6 +135,11 @@ export default function WaitingRoom() {
             </div>
           ))}
         </div>
+
+        <AdBanner
+          slotId={import.meta.env.VITE_ADSENSE_SLOT_WAITING}
+          style={{ marginBottom: '24px' }}
+        />
 
         {/* Start button / waiting text */}
         {isHost ? (
