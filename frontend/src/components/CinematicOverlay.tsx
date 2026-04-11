@@ -51,7 +51,7 @@ export default function CinematicOverlay() {
     if (!current) return
     const t = setTimeout(shiftOverlay, current.durationMs)
     return () => clearTimeout(t)
-  }, [current?.type, current?.title, current?.theme])
+  }, [current?.type, current?.title, current?.theme, current?.durationMs])
 
   if (!current) return null
 
@@ -149,11 +149,11 @@ export default function CinematicOverlay() {
         {/* Role pills */}
         {current.rolePills && current.rolePills.length > 0 && (
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '8px' }}>
-            {current.rolePills.map((pill, i) => {
+            {current.rolePills.map((pill) => {
               const pillStyle = ROLE_PILL_COLORS[pill.role] ?? ROLE_PILL_COLORS.citizen
               return (
                 <div
-                  key={i}
+                  key={pill.role}
                   style={{
                     fontFamily: MONO,
                     fontSize: '10px',
@@ -199,7 +199,7 @@ export default function CinematicOverlay() {
             fontSize: '9px',
             textTransform: 'uppercase',
             letterSpacing: '0.12em',
-            color: '#2E2820',
+            color: current.theme === 'killed' ? '#3A3530' : '#2E2820',
           }}
         >
           클릭하여 건너뛰기
