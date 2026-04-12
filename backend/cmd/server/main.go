@@ -75,6 +75,8 @@ func main() {
 	gameStateRepo := repository.NewGameStateRepository(pool)
 	aiHistoryRepo := repository.NewAIHistoryRepository(pool)
 	gameResultRepo := repository.NewGameResultRepository(pool)
+	userRepo := repository.NewUserRepository(pool)
+	sessionRepo := repository.NewSessionRepository(rdb)
 
 	// --- Room Service ---
 	roomSvc := platform.NewRoomService(pool, logger)
@@ -175,7 +177,7 @@ func main() {
 	app.Use(cors.New())
 
 	// HTTP routes
-	handler := platform.NewHandler(roomSvc, gameHub)
+	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, cfg.Supabase.JWTSecret)
 	handler.RegisterRoutes(app)
 
 	// WebSocket upgrade middleware
@@ -188,9 +190,16 @@ func main() {
 
 	app.Get("/ws/rooms/:id", fiberws.New(func(c *fiberws.Conn) {
 		roomID := c.Params("id")
-		playerID := c.Query("player_id")
-		if playerID == "" {
-			logger.Warn("ws connection without player_id", zap.String("room_id", roomID))
+		tokenStr := c.Query("token")
+		authID, _, err := platform.ValidateJWT(tokenStr, cfg.Supabase.JWTSecret)
+		if err != nil {
+			logger.Warn("ws: invalid token", zap.String("room_id", roomID), zap.Error(err))
+			_ = c.Close()
+			return
+		}
+		playerID, err := userRepo.GetByAuthID(context.Background(), authID)
+		if err != nil || playerID == "" {
+			logger.Warn("ws: user not found for auth_id", zap.String("auth_id", authID))
 			_ = c.Close()
 			return
 		}
