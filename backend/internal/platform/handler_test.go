@@ -22,6 +22,7 @@ type mockHub struct {
 
 func (m *mockHub) StartGame(_ string) error   { return m.startGameErr }
 func (m *mockHub) RestartGame(_ string) error { return m.restartGameErr }
+func (m *mockHub) ForceRemove(_, _ string)    {}
 
 // setupApp builds a Fiber app with real RoomService (in-memory) and mockHub.
 func setupApp(t *testing.T) (*fiber.App, *RoomService) {

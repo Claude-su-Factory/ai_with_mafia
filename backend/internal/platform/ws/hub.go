@@ -316,6 +316,30 @@ func (h *Hub) RestartGame(roomID string) error {
 	return h.gameManager.RestartGame(h.serverCtx, room)
 }
 
+// ForceRemove immediately removes a player without waiting for the grace timer.
+// Used by the leave-beacon endpoint when a player intentionally navigates away.
+func (h *Hub) ForceRemove(playerID, roomID string) {
+	// Cancel grace timer if there is one pending for this player.
+	h.pdMu.Lock()
+	if pd, ok := h.pendingDisconnects[playerID]; ok {
+		pd.timer.Stop()
+		delete(h.pendingDisconnects, playerID)
+	}
+	h.pdMu.Unlock()
+
+	// Remove from local client map if still connected.
+	h.mu.Lock()
+	if clients, ok := h.rooms[roomID]; ok {
+		delete(clients, playerID)
+		if len(clients) == 0 {
+			delete(h.rooms, roomID)
+		}
+	}
+	h.mu.Unlock()
+
+	h.doRemove(roomID, playerID)
+}
+
 // SendToPlayer sends a message to a single player in a room.
 // If the player is not connected locally or the send channel is full, a warning is logged.
 func (h *Hub) SendToPlayer(roomID, playerID string, payload any) {

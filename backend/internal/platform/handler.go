@@ -17,6 +17,7 @@ type Handler struct {
 type GameHub interface {
 	StartGame(roomID string) error
 	RestartGame(roomID string) error
+	ForceRemove(playerID, roomID string)
 }
 
 func NewHandler(rooms *RoomService, hub GameHub) *Handler {
