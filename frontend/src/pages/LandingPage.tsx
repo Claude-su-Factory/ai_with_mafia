@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 import { prepare, layout } from '@chenglou/pretext'
 
 // ── Design tokens (Case File / Industrial Noir) ─────────────────────────────
@@ -173,6 +174,22 @@ const KEYFRAMES = `
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { user, loading, signInWithGoogle } = useAuthStore()
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/lobby')
+    }
+  }, [user, loading, navigate])
+
+  function handleCTA() {
+    if (user) {
+      navigate('/lobby')
+    } else {
+      void signInWithGoogle()
+    }
+  }
+
   const heroRef    = useRef<HTMLHeadingElement>(null)
   const [mounted, setMounted]   = useState(false)
   const [statsVisible, setStatsVisible] = useState(false)
@@ -315,7 +332,7 @@ export default function LandingPage() {
           AI Mafia
         </span>
         <button
-          onClick={() => navigate('/lobby')}
+          onClick={handleCTA}
           style={{
             fontFamily: FONT_MONO, fontSize: 11, letterSpacing: '0.15em',
             textTransform: 'uppercase', color: T.textMuted,
@@ -402,7 +419,7 @@ export default function LandingPage() {
         {/* CTAs */}
         <div style={{ display: 'flex', gap: 16, position: 'relative', ...fadeUp(mounted, 360) }}>
           <button
-            onClick={() => navigate('/lobby')}
+            onClick={handleCTA}
             style={{
               fontFamily: FONT_MONO, fontSize: 12, letterSpacing: '0.18em',
               textTransform: 'uppercase', color: T.bg, background: T.accent,
@@ -415,7 +432,7 @@ export default function LandingPage() {
             방 입장하기
           </button>
           <button
-            onClick={() => navigate('/lobby')}
+            onClick={handleCTA}
             style={{
               fontFamily: FONT_MONO, fontSize: 12, letterSpacing: '0.18em',
               textTransform: 'uppercase', color: T.textMuted, background: 'transparent',
@@ -790,7 +807,7 @@ export default function LandingPage() {
             방을 만들고, 플레이어를 초대하거나, 공개 테이블에 합류하라. 게임은 이미 시작됐다.
           </p>
           <button
-            onClick={() => navigate('/lobby')}
+            onClick={handleCTA}
             style={{
               fontFamily: FONT_MONO, fontSize: 13, letterSpacing: '0.2em',
               textTransform: 'uppercase', color: T.bg, background: T.accent,
