@@ -1,16 +1,31 @@
+import { supabase } from './lib/supabase'
+
 const BASE = '/api'
 
+async function getAuthHeader(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    return { Authorization: `Bearer ${session.access_token}` }
+  }
+  return {}
+}
+
 async function request<T>(path: string, options?: RequestInit & { headers?: Record<string, string> }): Promise<T> {
+  const authHeader = await getAuthHeader()
   const { headers: optHeaders, ...restOptions } = options ?? {}
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...optHeaders },
+    headers: { 'Content-Type': 'application/json', ...authHeader, ...optHeaders },
     ...restOptions,
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error ?? `HTTP ${res.status}`)
+    const body = await res.json().catch(() => ({})) as { error?: string; room_id?: string }
+    const err = new Error(body.error ?? `HTTP ${res.status}`) as Error & { roomID?: string }
+    if (res.status === 409 && body.room_id) {
+      err.roomID = body.room_id
+    }
+    throw err
   }
-  return res.json()
+  return res.json() as Promise<T>
 }
 
 export interface CreateRoomParams {
@@ -65,16 +80,10 @@ export function joinByCode(params: JoinByCodeParams) {
   })
 }
 
-export function startGame(roomID: string, playerID: string) {
-  return request<void>(`/rooms/${roomID}/start`, {
-    method: 'POST',
-    headers: { 'X-Player-ID': playerID },
-  })
+export function startGame(roomID: string) {
+  return request<void>(`/rooms/${roomID}/start`, { method: 'POST' })
 }
 
-export function restartGame(roomID: string, playerID: string) {
-  return request<void>(`/rooms/${roomID}/restart`, {
-    method: 'POST',
-    headers: { 'X-Player-ID': playerID },
-  })
+export function restartGame(roomID: string) {
+  return request<void>(`/rooms/${roomID}/restart`, { method: 'POST' })
 }

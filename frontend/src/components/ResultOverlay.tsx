@@ -41,7 +41,7 @@ export default function ResultOverlay() {
 
   async function handleRestart() {
     try {
-      await restartGame(roomID!, playerID)
+      await restartGame(roomID!)
       useGameStore.setState({ result: null })
       connect(roomID!)
     } catch (e) {

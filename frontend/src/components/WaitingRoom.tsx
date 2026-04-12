@@ -43,7 +43,7 @@ export default function WaitingRoom() {
   async function handleStart() {
     if (!room) return
     try {
-      await startGame(room.id, playerID)
+      await startGame(room.id)
     } catch (e) {
       console.error('게임 시작 실패:', e)
     }
