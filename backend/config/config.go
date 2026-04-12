@@ -11,6 +11,11 @@ type Config struct {
 	AI       AIConfig        `toml:"ai"`
 	Game     GameConfig      `toml:"game"`
 	Personas []PersonaConfig `toml:"personas"`
+	Supabase SupabaseConfig  `toml:"supabase"`
+}
+
+type SupabaseConfig struct {
+	JWTSecret string `toml:"jwt_secret"`
 }
 
 type ServerConfig struct {
