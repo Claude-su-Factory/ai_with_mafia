@@ -154,9 +154,15 @@ export default function LobbyPage() {
     setJoinError('')
     try {
       const res = await joinRoom({ room_id: joiningRoom.id, player_name: joinName.trim() })
-      localStorage.setItem(`player_id_${joiningRoom.id}`, res.player_id)
-      navigate(`/rooms/${joiningRoom.id}`)
+      navigate(`/rooms/${res.id}`)
     } catch (e: unknown) {
+      if (e instanceof Error && (e as Error & { roomID?: string }).roomID) {
+        const existingRoomID = (e as Error & { roomID: string }).roomID
+        if (confirm('이미 입장한 방이 있습니다. 돌아가시겠습니까?')) {
+          navigate(`/rooms/${existingRoomID}`)
+        }
+        return
+      }
       setJoinError(e instanceof Error ? e.message : '참가에 실패했습니다.')
     }
   }
@@ -170,9 +176,15 @@ export default function LobbyPage() {
         visibility: createVisibility,
         player_name: createPlayerName.trim(),
       })
-      localStorage.setItem(`player_id_${res.id}`, res.player_id)
       navigate(`/rooms/${res.id}`)
     } catch (e: unknown) {
+      if (e instanceof Error && (e as Error & { roomID?: string }).roomID) {
+        const existingRoomID = (e as Error & { roomID: string }).roomID
+        if (confirm('이미 입장한 방이 있습니다. 돌아가시겠습니까?')) {
+          navigate(`/rooms/${existingRoomID}`)
+        }
+        return
+      }
       setCreateError(e instanceof Error ? e.message : '방 생성에 실패했습니다.')
     }
   }
@@ -182,9 +194,15 @@ export default function LobbyPage() {
     setCodeError('')
     try {
       const res = await joinByCode({ code: codeInput.trim(), player_name: codePlayerName.trim() })
-      localStorage.setItem(`player_id_${res.id}`, res.player_id)
       navigate(`/rooms/${res.id}`)
     } catch (e: unknown) {
+      if (e instanceof Error && (e as Error & { roomID?: string }).roomID) {
+        const existingRoomID = (e as Error & { roomID: string }).roomID
+        if (confirm('이미 입장한 방이 있습니다. 돌아가시겠습니까?')) {
+          navigate(`/rooms/${existingRoomID}`)
+        }
+        return
+      }
       setCodeError(e instanceof Error ? e.message : '코드 참가에 실패했습니다.')
     }
   }
