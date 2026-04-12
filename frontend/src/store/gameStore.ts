@@ -158,25 +158,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   connect(roomID: string) {
     currentRoomID = roomID
-    const playerID = localStorage.getItem(`player_id_${roomID}`) ?? ''
-    set({ playerID, wsStatus: 'connecting' })
+    set({ wsStatus: 'connecting' })
 
-    clearReconnectTimer()
-    if (ws) {
-      ws.onclose = null
-      ws.close()
-    }
+    void (async () => {
+      const { useAuthStore } = await import('./authStore')
+      const { playerID, getAccessToken } = useAuthStore.getState()
+      const token = await getAccessToken()
+      set({ playerID })
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${protocol}//${window.location.host}/ws/rooms/${roomID}?player_id=${playerID}`
-    ws = new WebSocket(url)
+      clearReconnectTimer()
+      if (ws) {
+        ws.onclose = null
+        ws.close()
+      }
 
-    ws.onopen = () => {
-      reconnectDelay = 1000
-      set({ wsStatus: 'connected' })
-    }
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const url = `${protocol}//${window.location.host}/ws/rooms/${roomID}?token=${token}`
+      ws = new WebSocket(url)
 
-    ws.onmessage = (e) => {
+      ws.onopen = () => {
+        reconnectDelay = 1000
+        set({ wsStatus: 'connected' })
+      }
+
+      ws.onmessage = (e) => {
       let event: WsEvent
       try {
         event = JSON.parse(e.data)
@@ -400,13 +405,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     }
 
-    ws.onclose = () => {
-      set({ wsStatus: 'reconnecting' })
-      reconnectTimer = setTimeout(() => {
-        reconnectDelay = Math.min(reconnectDelay * 2, 10000)
-        get().connect(currentRoomID)
-      }, reconnectDelay)
-    }
+      ws.onclose = () => {
+        set({ wsStatus: 'reconnecting' })
+        reconnectTimer = setTimeout(() => {
+          reconnectDelay = Math.min(reconnectDelay * 2, 10000)
+          get().connect(currentRoomID)
+        }, reconnectDelay)
+      }
+    })()
   },
 
   disconnect() {
