@@ -41,7 +41,7 @@ export default function RoomPage() {
     return () => {
       disconnect()
     }
-  }, [roomID, playerID])
+  }, [roomID, playerID, connect, disconnect, navigate])
 
   useEffect(() => {
     if (!roomID || !playerID) return

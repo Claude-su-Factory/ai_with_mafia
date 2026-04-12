@@ -32,7 +32,7 @@ const ROLE_COLOR: Record<Role, { color: string; bg: string }> = {
 export default function ResultOverlay() {
   const { id: roomID } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { result, room, playerID, connect } = useGameStore()
+  const { result, room, playerID } = useGameStore()
 
   if (!result || !room || !roomID) return null
 
@@ -43,7 +43,6 @@ export default function ResultOverlay() {
     try {
       await restartGame(roomID!)
       useGameStore.setState({ result: null })
-      connect(roomID!)
     } catch (e) {
       console.error('재시작 실패:', e)
     }

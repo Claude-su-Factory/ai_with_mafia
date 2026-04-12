@@ -6,6 +6,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let timerInterval: ReturnType<typeof setInterval> | null = null
 let reconnectDelay = 1000
 let currentRoomID = ''
+let connectGeneration = 0
 
 function clearReconnectTimer() {
   if (reconnectTimer !== null) {
@@ -157,6 +158,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   overlayQueue: [],
 
   connect(roomID: string) {
+    const generation = ++connectGeneration
     currentRoomID = roomID
     set({ wsStatus: 'connecting' })
 
@@ -164,6 +166,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const { useAuthStore } = await import('./authStore')
       const { playerID, getAccessToken } = useAuthStore.getState()
       const token = await getAccessToken()
+      if (!token) {
+        set({ wsStatus: 'disconnected' })
+        return
+      }
+      if (generation !== connectGeneration) return
       set({ playerID })
 
       clearReconnectTimer()
