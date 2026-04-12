@@ -50,7 +50,6 @@ export default function ResultOverlay() {
   }
 
   function handleLeave() {
-    localStorage.removeItem(`player_id_${roomID}`)
     navigate('/')
   }
 

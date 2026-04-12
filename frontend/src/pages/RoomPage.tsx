@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useBlocker } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
+import { useAuthStore } from '../store/authStore'
 import WaitingRoom from '../components/WaitingRoom'
 import GameRoom from '../components/GameRoom'
 import ResultOverlay from '../components/ResultOverlay'
@@ -11,6 +12,7 @@ export default function RoomPage() {
   const { id: roomID } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { connect, disconnect, room, result } = useGameStore()
+  const { playerID } = useAuthStore()
 
   // Block navigation only when game is actively playing and no result yet
   const shouldBlock = room?.status === 'playing' && !result
@@ -31,7 +33,6 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (!roomID) return
-    const playerID = localStorage.getItem(`player_id_${roomID}`)
     if (!playerID) {
       navigate('/lobby')
       return
@@ -40,7 +41,19 @@ export default function RoomPage() {
     return () => {
       disconnect()
     }
-  }, [roomID])
+  }, [roomID, playerID])
+
+  useEffect(() => {
+    if (!roomID || !playerID) return
+    const handlePageHide = () => {
+      navigator.sendBeacon(
+        `/api/rooms/${roomID}/leave`,
+        new Blob([JSON.stringify({ player_id: playerID })], { type: 'application/json' }),
+      )
+    }
+    window.addEventListener('pagehide', handlePageHide)
+    return () => window.removeEventListener('pagehide', handlePageHide)
+  }, [roomID, playerID])
 
   const handleLeaveConfirm = useCallback(() => {
     disconnect()
