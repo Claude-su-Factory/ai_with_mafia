@@ -31,23 +31,44 @@ async function request<T>(path: string, options?: RequestInit & { headers?: Reco
 export interface CreateRoomParams {
   name: string
   visibility: 'public' | 'private'
-  player_name: string
   max_humans?: number
 }
 
 export interface JoinRoomParams {
   room_id: string
-  player_name: string
 }
 
 export interface JoinByCodeParams {
   code: string
-  player_name: string
 }
 
 export interface JoinResponse {
   player_id: string
   id: string
+}
+
+export interface RoleStats {
+  games: number
+  wins: number
+  win_rate: number
+}
+
+export interface MyStatsResponse {
+  total_games: number
+  wins: number
+  losses: number
+  win_rate: number
+  by_role: Record<string, RoleStats>
+}
+
+export interface MyGameRecord {
+  game_id: string
+  played_at: string
+  role: string
+  survived: boolean
+  won: boolean
+  round_count: number
+  duration_sec: number
 }
 
 export function listRooms() {
@@ -57,7 +78,6 @@ export function listRooms() {
 export function createRoom(params: CreateRoomParams) {
   return request<JoinResponse>('/rooms', {
     method: 'POST',
-    headers: { 'X-Player-Name': params.player_name },
     body: JSON.stringify({
       name: params.name,
       visibility: params.visibility,
@@ -69,14 +89,14 @@ export function createRoom(params: CreateRoomParams) {
 export function joinRoom(params: JoinRoomParams) {
   return request<JoinResponse>(`/rooms/${params.room_id}/join`, {
     method: 'POST',
-    body: JSON.stringify({ player_name: params.player_name }),
+    body: JSON.stringify({}),
   })
 }
 
 export function joinByCode(params: JoinByCodeParams) {
   return request<JoinResponse>('/rooms/join/code', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify({ code: params.code }),
   })
 }
 
@@ -86,4 +106,19 @@ export function startGame(roomID: string) {
 
 export function restartGame(roomID: string) {
   return request<void>(`/rooms/${roomID}/restart`, { method: 'POST' })
+}
+
+export function updateMe(displayName: string) {
+  return request<{ player_id: string; display_name: string }>('/me', {
+    method: 'PUT',
+    body: JSON.stringify({ display_name: displayName }),
+  })
+}
+
+export function getMyStats() {
+  return request<MyStatsResponse>('/me/stats')
+}
+
+export function getMyGames(limit = 20) {
+  return request<MyGameRecord[]>(`/me/games?limit=${limit}`)
 }
