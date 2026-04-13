@@ -29,7 +29,7 @@ func (m *mockHub) ForceRemove(_, _ string)    {}
 func setupApp(t *testing.T) (*fiber.App, *RoomService) {
 	t.Helper()
 	svc := NewRoomService(nil, zap.NewNop())
-	h := NewHandler(svc, &mockHub{}, nil, nil, "")
+	h := NewHandler(svc, &mockHub{}, nil, nil, nil, "")
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -269,6 +269,48 @@ func TestLeaveRoom_Success(t *testing.T) {
 	}
 	if resp.StatusCode != fiber.StatusNoContent {
 		t.Errorf("expected 204, got %d", resp.StatusCode)
+	}
+}
+
+func TestUpdateMe_Unauthorized(t *testing.T) {
+	app, _ := setupApp(t)
+
+	req := httptest.NewRequest("PUT", "/api/me",
+		jsonBody(`{"display_name":"홍길동"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusUnauthorized {
+		t.Errorf("expected 401 without JWT, got %d", resp.StatusCode)
+	}
+}
+
+func TestMyStats_Unauthorized(t *testing.T) {
+	app, _ := setupApp(t)
+
+	req := httptest.NewRequest("GET", "/api/me/stats", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusUnauthorized {
+		t.Errorf("expected 401 without JWT, got %d", resp.StatusCode)
+	}
+}
+
+func TestMyGames_Unauthorized(t *testing.T) {
+	app, _ := setupApp(t)
+
+	req := httptest.NewRequest("GET", "/api/me/games", nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusUnauthorized {
+		t.Errorf("expected 401 without JWT, got %d", resp.StatusCode)
 	}
 }
 
