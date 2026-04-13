@@ -177,7 +177,7 @@ func main() {
 	app.Use(cors.New())
 
 	// HTTP routes
-	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, cfg.Supabase.JWTSecret)
+	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, gameResultRepo, cfg.Supabase.JWTSecret)
 	handler.RegisterRoutes(app)
 
 	// WebSocket upgrade middleware
