@@ -31,8 +31,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
   return `${mm}-${dd}`
 }
 
@@ -48,6 +48,7 @@ export default function ProfilePage() {
   const [stats, setStats] = useState<MyStatsResponse | null>(null)
   const [games, setGames] = useState<MyGameRecord[]>([])
   const [statsLoading, setStatsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
 
   // Nickname edit state
   const [editing, setEditing] = useState(false)
@@ -72,7 +73,7 @@ export default function ProfilePage() {
         setStats(s)
         setGames(g)
       } catch {
-        // leave null — show zeros
+        setFetchError(true)
       } finally {
         setStatsLoading(false)
       }
@@ -99,8 +100,8 @@ export default function ProfilePage() {
     setSaving(true)
     setEditError('')
     try {
-      await updateMe(trimmed)
-      useAuthStore.setState({ displayName: trimmed })
+      const updated = await updateMe(trimmed)
+      useAuthStore.setState({ displayName: updated.display_name })
       setEditing(false)
     } catch {
       setEditError('저장에 실패했습니다.')
@@ -220,6 +221,7 @@ export default function ProfilePage() {
                 <button
                   onClick={startEdit}
                   title="닉네임 수정"
+                  aria-label="닉네임 수정"
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     color: T.textMuted, padding: '4px', borderRadius: '2px',
@@ -271,6 +273,16 @@ export default function ProfilePage() {
           </div>
         </section>
 
+        {fetchError && (
+          <div style={{
+            margin: '0 0 24px', padding: '12px 16px', borderRadius: '2px',
+            background: 'rgba(140,31,31,0.08)', border: '1px solid rgba(140,31,31,0.25)',
+            fontFamily: MONO, fontSize: '12px', color: T.danger,
+          }}>
+            통계를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.
+          </div>
+        )}
+
         {/* ── Role stats table ── */}
         {!statsLoading && roleEntries.length > 0 && (
           <section style={{ marginBottom: '32px' }}>
@@ -313,7 +325,11 @@ export default function ProfilePage() {
           <span style={{ fontFamily: MONO, fontSize: '10px', color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.12em', display: 'block', marginBottom: '14px' }}>
             최근 게임
           </span>
-          {!statsLoading && games.length === 0 ? (
+          {statsLoading ? (
+            <div style={{ fontFamily: MONO, fontSize: '11px', color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              LOADING...
+            </div>
+          ) : games.length === 0 ? (
             <p style={{ fontFamily: MONO, fontSize: '11px', color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               게임 기록 없음
             </p>
