@@ -11,11 +11,12 @@ import (
 )
 
 type Handler struct {
-	rooms       *RoomService
-	gameHub     GameHub
-	userRepo    *repository.UserRepository
-	sessionRepo *repository.SessionRepository
-	jwtSecret   string
+	rooms          *RoomService
+	gameHub        GameHub
+	userRepo       *repository.UserRepository
+	sessionRepo    *repository.SessionRepository
+	gameResultRepo *repository.GameResultRepository
+	jwtSecret      string
 }
 
 // GameHub is implemented by ws.Hub; defined here to avoid circular imports.
@@ -25,13 +26,21 @@ type GameHub interface {
 	ForceRemove(playerID, roomID string)
 }
 
-func NewHandler(rooms *RoomService, hub GameHub, userRepo *repository.UserRepository, sessionRepo *repository.SessionRepository, jwtSecret string) *Handler {
+func NewHandler(
+	rooms *RoomService,
+	hub GameHub,
+	userRepo *repository.UserRepository,
+	sessionRepo *repository.SessionRepository,
+	gameResultRepo *repository.GameResultRepository,
+	jwtSecret string,
+) *Handler {
 	return &Handler{
-		rooms:       rooms,
-		gameHub:     hub,
-		userRepo:    userRepo,
-		sessionRepo: sessionRepo,
-		jwtSecret:   jwtSecret,
+		rooms:          rooms,
+		gameHub:        hub,
+		userRepo:       userRepo,
+		sessionRepo:    sessionRepo,
+		gameResultRepo: gameResultRepo,
+		jwtSecret:      jwtSecret,
 	}
 }
 
@@ -40,6 +49,9 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	api.Get("/rooms", h.listRooms)
 	api.Get("/rooms/:id", h.getRoom)
 	api.Get("/me", h.me)
+	api.Put("/me", h.updateMe)
+	api.Get("/me/stats", h.myStats)
+	api.Get("/me/games", h.myGames)
 	api.Post("/rooms", h.createRoom)
 	api.Post("/rooms/:id/join", h.joinRoom)
 	api.Post("/rooms/join/code", h.joinByCode)
@@ -48,8 +60,7 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	api.Post("/rooms/:id/leave", h.leaveRoom)
 }
 
-// resolvePlayer validates the JWT from Authorization header and returns the
-// caller's fixed player_id (creating the user record on first login).
+// resolvePlayer validates the JWT and returns the caller's player_id.
 func (h *Handler) resolvePlayer(c *fiber.Ctx) (string, error) {
 	tokenStr := strings.TrimPrefix(c.Get("Authorization"), "Bearer ")
 	authID, displayName, err := ValidateJWT(tokenStr, h.jwtSecret)
@@ -59,8 +70,27 @@ func (h *Handler) resolvePlayer(c *fiber.Ctx) (string, error) {
 	return h.userRepo.GetOrCreate(c.Context(), authID, displayName)
 }
 
+// resolvePlayerFull validates the JWT and returns playerID + stored display_name.
+// Used for room entry so the stored (possibly custom) nickname is used, not the JWT name.
+func (h *Handler) resolvePlayerFull(c *fiber.Ctx) (playerID, displayName string, err error) {
+	tokenStr := strings.TrimPrefix(c.Get("Authorization"), "Bearer ")
+	authID, jwtName, err := ValidateJWT(tokenStr, h.jwtSecret)
+	if err != nil {
+		return "", "", err
+	}
+	playerID, err = h.userRepo.GetOrCreate(c.Context(), authID, jwtName)
+	if err != nil {
+		return "", "", err
+	}
+	displayName, err = h.userRepo.GetDisplayName(c.Context(), playerID)
+	if err != nil || displayName == "" {
+		displayName = jwtName // fallback to JWT name if DB lookup fails
+		err = nil
+	}
+	return playerID, displayName, nil
+}
+
 // checkActiveSession returns true and writes a 409 response if the player is already in a live room.
-// Cleans up stale Redis entries if the room no longer exists.
 func (h *Handler) checkActiveSession(c *fiber.Ctx, playerID string) bool {
 	if h.sessionRepo == nil {
 		return false
@@ -76,7 +106,6 @@ func (h *Handler) checkActiveSession(c *fiber.Ctx, playerID string) bool {
 		})
 		return true
 	}
-	// Room gone — stale session, clean up silently.
 	_ = h.sessionRepo.Delete(c.Context(), playerID)
 	return false
 }
@@ -86,7 +115,96 @@ func (h *Handler) me(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	return c.JSON(fiber.Map{"player_id": playerID})
+	displayName := ""
+	if h.userRepo != nil {
+		displayName, _ = h.userRepo.GetDisplayName(c.Context(), playerID)
+	}
+	return c.JSON(fiber.Map{"player_id": playerID, "display_name": displayName})
+}
+
+type updateMeRequest struct {
+	DisplayName string `json:"display_name"`
+}
+
+func (h *Handler) updateMe(c *fiber.Ctx) error {
+	playerID, err := h.resolvePlayer(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	var req updateMeRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	name := strings.TrimSpace(req.DisplayName)
+	if name == "" || len([]rune(name)) > 50 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid display_name"})
+	}
+	if h.userRepo == nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "not available"})
+	}
+	if err := h.userRepo.UpdateDisplayName(c.Context(), playerID, name); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"player_id": playerID, "display_name": name})
+}
+
+func (h *Handler) myStats(c *fiber.Ctx) error {
+	playerID, err := h.resolvePlayer(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	if h.gameResultRepo == nil {
+		return c.JSON(fiber.Map{
+			"total_games": 0, "wins": 0, "losses": 0, "win_rate": 0, "by_role": fiber.Map{},
+		})
+	}
+	stats, err := h.gameResultRepo.GetStatsByPlayerID(c.Context(), playerID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	byRole := fiber.Map{}
+	for role, rs := range stats.ByRole {
+		byRole[role] = fiber.Map{
+			"games":    rs.Games,
+			"wins":     rs.Wins,
+			"win_rate": rs.WinRate,
+		}
+	}
+	return c.JSON(fiber.Map{
+		"total_games": stats.TotalGames,
+		"wins":        stats.Wins,
+		"losses":      stats.Losses,
+		"win_rate":    stats.WinRate,
+		"by_role":     byRole,
+	})
+}
+
+func (h *Handler) myGames(c *fiber.Ctx) error {
+	playerID, err := h.resolvePlayer(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+	limit := c.QueryInt("limit", 20)
+	if h.gameResultRepo == nil {
+		return c.JSON([]fiber.Map{})
+	}
+	records, err := h.gameResultRepo.GetRecentGamesByPlayerID(c.Context(), playerID, limit)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	result := make([]fiber.Map, 0, len(records))
+	for _, r := range records {
+		result = append(result, fiber.Map{
+			"game_id":      r.GameID,
+			"played_at":    r.PlayedAt,
+			"role":         r.Role,
+			"survived":     r.Survived,
+			"won":          r.Won,
+			"round_count":  r.RoundCount,
+			"duration_sec": r.DurationSec,
+		})
+	}
+	return c.JSON(result)
 }
 
 func (h *Handler) listRooms(c *fiber.Ctx) error {
@@ -107,20 +225,18 @@ func (h *Handler) getRoom(c *fiber.Ctx) error {
 }
 
 func (h *Handler) createRoom(c *fiber.Ctx) error {
-	playerID, err := h.resolvePlayer(c)
+	playerID, displayName, err := h.resolvePlayerFull(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	if h.checkActiveSession(c, playerID) {
 		return nil
 	}
-
 	var req dto.CreateRoomRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	hostName := c.Get("X-Player-Name", "방장")
-	room, err := h.rooms.Create(req, playerID, hostName)
+	room, err := h.rooms.Create(req, playerID, displayName)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -134,19 +250,14 @@ func (h *Handler) createRoom(c *fiber.Ctx) error {
 }
 
 func (h *Handler) joinRoom(c *fiber.Ctx) error {
-	playerID, err := h.resolvePlayer(c)
+	playerID, displayName, err := h.resolvePlayerFull(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	if h.checkActiveSession(c, playerID) {
 		return nil
 	}
-
-	var req dto.JoinRoomRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	room, err := h.rooms.Join(c.Params("id"), playerID, req.PlayerName)
+	room, err := h.rooms.Join(c.Params("id"), playerID, displayName)
 	if err != nil {
 		status := fiber.StatusConflict
 		if err.Error() == "room not found" {
@@ -164,19 +275,18 @@ func (h *Handler) joinRoom(c *fiber.Ctx) error {
 }
 
 func (h *Handler) joinByCode(c *fiber.Ctx) error {
-	playerID, err := h.resolvePlayer(c)
+	playerID, displayName, err := h.resolvePlayerFull(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	if h.checkActiveSession(c, playerID) {
 		return nil
 	}
-
 	var req dto.JoinByCodeRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	room, err := h.rooms.JoinByCode(req.Code, playerID, req.PlayerName)
+	room, err := h.rooms.JoinByCode(req.Code, playerID, displayName)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -235,7 +345,7 @@ type leaveRequest struct {
 }
 
 // leaveRoom is called by navigator.sendBeacon on pagehide.
-// No JWT auth — uses player_id from request body (sendBeacon cannot set custom headers).
+// No JWT auth — uses player_id from request body.
 func (h *Handler) leaveRoom(c *fiber.Ctx) error {
 	var req leaveRequest
 	if err := c.BodyParser(&req); err != nil || req.PlayerID == "" {
