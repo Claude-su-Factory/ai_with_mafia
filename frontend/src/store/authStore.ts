@@ -40,21 +40,22 @@ export const useAuthStore = create<AuthStore>((set) => ({
       set({ loading: false })
     }
 
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription: _authSubscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         const res = await fetch('/api/me', {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
         if (res.ok) {
           const data = await res.json() as { player_id: string; display_name: string }
-          set({ user: session.user, playerID: data.player_id, displayName: data.display_name })
+          set({ user: session.user, playerID: data.player_id, displayName: data.display_name, loading: false })
         } else {
-          set({ user: session.user })
+          set({ user: session.user, playerID: '', displayName: '', loading: false })
         }
       } else if (event === 'SIGNED_OUT') {
         set({ user: null, playerID: '', displayName: '' })
       }
     })
+    void _authSubscription
   },
 
   async signInWithGoogle() {
