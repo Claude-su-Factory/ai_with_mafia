@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 interface AuthStore {
   user: User | null
   playerID: string
+  displayName: string
   loading: boolean
   initialize: () => Promise<void>
   signInWithGoogle: () => Promise<void>
@@ -12,12 +13,12 @@ interface AuthStore {
   getAccessToken: () => Promise<string>
 }
 
-// Guard against double-initialization in React StrictMode.
 let initialized = false
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   playerID: '',
+  displayName: '',
   loading: true,
 
   async initialize() {
@@ -30,8 +31,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       if (res.ok) {
-        const data = await res.json() as { player_id: string }
-        set({ user: session.user, playerID: data.player_id, loading: false })
+        const data = await res.json() as { player_id: string; display_name: string }
+        set({ user: session.user, playerID: data.player_id, displayName: data.display_name, loading: false })
       } else {
         set({ user: session.user, loading: false })
       }
@@ -45,13 +46,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
         if (res.ok) {
-          const data = await res.json() as { player_id: string }
-          set({ user: session.user, playerID: data.player_id })
+          const data = await res.json() as { player_id: string; display_name: string }
+          set({ user: session.user, playerID: data.player_id, displayName: data.display_name })
         } else {
           set({ user: session.user })
         }
       } else if (event === 'SIGNED_OUT') {
-        set({ user: null, playerID: '' })
+        set({ user: null, playerID: '', displayName: '' })
       }
     })
   },
@@ -65,7 +66,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   async signOut() {
     await supabase.auth.signOut()
-    set({ user: null, playerID: '' })
+    set({ user: null, playerID: '', displayName: '' })
   },
 
   async getAccessToken() {
