@@ -171,3 +171,127 @@ func (r *GameResultRepository) Save(ctx context.Context, result GameResult) erro
 func newResultID() string {
 	return uuid.NewString()
 }
+
+// ─── Stats ───────────────────────────────────────────────────────────────────
+
+type RoleStats struct {
+	Games   int
+	Wins    int
+	WinRate float64
+}
+
+type PlayerStats struct {
+	TotalGames int
+	Wins       int
+	Losses     int
+	WinRate    float64
+	ByRole     map[string]RoleStats
+}
+
+type PlayerGameRecord struct {
+	GameID      string
+	PlayedAt    string // RFC3339
+	Role        string
+	Survived    bool
+	Won         bool
+	RoundCount  int
+	DurationSec int
+}
+
+// GetStatsByPlayerID aggregates win/loss stats for a human player.
+func (r *GameResultRepository) GetStatsByPlayerID(ctx context.Context, playerID string) (PlayerStats, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			p.role,
+			COUNT(*) AS games,
+			COUNT(*) FILTER (WHERE
+				(p.role = 'mafia' AND gr.winner_team = 'mafia') OR
+				(p.role != 'mafia' AND gr.winner_team = 'citizen')
+			) AS wins
+		FROM game_result_players p
+		JOIN game_results gr ON p.game_result_id = gr.id
+		WHERE p.player_id = $1 AND p.is_ai = false
+		GROUP BY p.role
+	`, playerID)
+	if err != nil {
+		return PlayerStats{}, err
+	}
+	defer rows.Close()
+
+	byRole := make(map[string]RoleStats)
+	for rows.Next() {
+		var role string
+		var games, wins int
+		if err := rows.Scan(&role, &games, &wins); err != nil {
+			return PlayerStats{}, err
+		}
+		wr := 0.0
+		if games > 0 {
+			wr = float64(wins) / float64(games)
+		}
+		byRole[role] = RoleStats{Games: games, Wins: wins, WinRate: wr}
+	}
+	if err := rows.Err(); err != nil {
+		return PlayerStats{}, err
+	}
+
+	var total, wins int
+	for _, rs := range byRole {
+		total += rs.Games
+		wins += rs.Wins
+	}
+	wr := 0.0
+	if total > 0 {
+		wr = float64(wins) / float64(total)
+	}
+	return PlayerStats{
+		TotalGames: total,
+		Wins:       wins,
+		Losses:     total - wins,
+		WinRate:    wr,
+		ByRole:     byRole,
+	}, nil
+}
+
+// GetRecentGamesByPlayerID returns the most recent game records for a player.
+func (r *GameResultRepository) GetRecentGamesByPlayerID(ctx context.Context, playerID string, limit int) ([]PlayerGameRecord, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			gr.id,
+			gr.created_at,
+			p.role,
+			p.survived,
+			(p.role = 'mafia' AND gr.winner_team = 'mafia') OR
+			(p.role != 'mafia' AND gr.winner_team = 'citizen') AS won,
+			gr.round_count,
+			gr.duration_sec
+		FROM game_result_players p
+		JOIN game_results gr ON p.game_result_id = gr.id
+		WHERE p.player_id = $1 AND p.is_ai = false
+		ORDER BY gr.created_at DESC
+		LIMIT $2
+	`, playerID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []PlayerGameRecord
+	for rows.Next() {
+		var rec PlayerGameRecord
+		var playedAt interface{ String() string }
+		if err := rows.Scan(
+			&rec.GameID, &playedAt, &rec.Role,
+			&rec.Survived, &rec.Won,
+			&rec.RoundCount, &rec.DurationSec,
+		); err != nil {
+			return nil, err
+		}
+		rec.PlayedAt = playedAt.String()
+		records = append(records, rec)
+	}
+	return records, rows.Err()
+}
