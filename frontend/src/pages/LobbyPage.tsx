@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { listRooms, joinRoom, createRoom, joinByCode } from '../api'
 import type { Room } from '../types'
 import { prepare, layout } from '@chenglou/pretext'
+import { useAuthStore } from '../store/authStore'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -83,6 +84,7 @@ function injectCSS() {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LobbyPage() {
   const navigate = useNavigate()
+  const displayName = useAuthStore((s) => s.displayName)
 
   // Room list
   const [rooms, setRooms] = useState<Room[]>([])
@@ -91,18 +93,15 @@ export default function LobbyPage() {
 
   // Join modal
   const [joiningRoom, setJoiningRoom] = useState<Room | null>(null)
-  const [joinName, setJoinName] = useState('')
   const [joinError, setJoinError] = useState('')
 
   // Create room form
   const [createName, setCreateName] = useState('')
   const [createVisibility, setCreateVisibility] = useState<'public' | 'private'>('public')
-  const [createPlayerName, setCreatePlayerName] = useState('')
   const [createError, setCreateError] = useState('')
 
   // Code join form
   const [codeInput, setCodeInput] = useState('')
-  const [codePlayerName, setCodePlayerName] = useState('')
   const [codeError, setCodeError] = useState('')
 
   // Pretext — section heading
@@ -150,10 +149,10 @@ export default function LobbyPage() {
   }
 
   async function handleJoinRoom() {
-    if (!joiningRoom || !joinName.trim()) return
+    if (!joiningRoom) return
     setJoinError('')
     try {
-      const res = await joinRoom({ room_id: joiningRoom.id, player_name: joinName.trim() })
+      const res = await joinRoom({ room_id: joiningRoom.id })
       navigate(`/rooms/${res.id}`)
     } catch (e: unknown) {
       if (e instanceof Error && (e as Error & { roomID?: string }).roomID) {
@@ -168,13 +167,12 @@ export default function LobbyPage() {
   }
 
   async function handleCreateRoom() {
-    if (!createName.trim() || !createPlayerName.trim()) return
+    if (!createName.trim()) return
     setCreateError('')
     try {
       const res = await createRoom({
         name: createName.trim(),
         visibility: createVisibility,
-        player_name: createPlayerName.trim(),
       })
       navigate(`/rooms/${res.id}`)
     } catch (e: unknown) {
@@ -190,10 +188,10 @@ export default function LobbyPage() {
   }
 
   async function handleJoinByCode() {
-    if (!codeInput.trim() || !codePlayerName.trim()) return
+    if (!codeInput.trim()) return
     setCodeError('')
     try {
-      const res = await joinByCode({ code: codeInput.trim(), player_name: codePlayerName.trim() })
+      const res = await joinByCode({ code: codeInput.trim() })
       navigate(`/rooms/${res.id}`)
     } catch (e: unknown) {
       if (e instanceof Error && (e as Error & { roomID?: string }).roomID) {
@@ -209,7 +207,6 @@ export default function LobbyPage() {
 
   function openJoin(room: Room) {
     setJoiningRoom(room)
-    setJoinName('')
     setJoinError('')
   }
 
@@ -229,8 +226,28 @@ export default function LobbyPage() {
         >
           AI Mafia
         </button>
-        <div style={{ fontFamily: MONO, fontSize: '11px', color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          LOBBY
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button
+            onClick={() => navigate('/profile')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontFamily: SANS, fontSize: '13px', color: T.textMuted,
+              padding: '4px 8px', borderRadius: '2px',
+              transition: 'color 150ms ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = T.text)}
+            onMouseLeave={(e) => (e.currentTarget.style.color = T.textMuted)}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+              <circle cx="8" cy="5.5" r="2.5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M2.5 13.5C2.5 11.015 5.015 9 8 9s5.5 2.015 5.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            {displayName || '프로필'}
+          </button>
+          <div style={{ fontFamily: MONO, fontSize: '11px', color: T.textMuted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            LOBBY
+          </div>
         </div>
       </nav>
 
@@ -255,14 +272,6 @@ export default function LobbyPage() {
               onChange={(e) => setCreateName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
             />
-            <input
-              style={inputSt}
-              placeholder="닉네임"
-              value={createPlayerName}
-              onChange={(e) => setCreatePlayerName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
-            />
-
             {/* Visibility pills */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
               {(['public', 'private'] as const).map((v) => (
@@ -314,14 +323,6 @@ export default function LobbyPage() {
               maxLength={8}
               onKeyDown={(e) => e.key === 'Enter' && handleJoinByCode()}
             />
-            <input
-              style={inputSt}
-              placeholder="닉네임"
-              value={codePlayerName}
-              onChange={(e) => setCodePlayerName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoinByCode()}
-            />
-
             {codeError && <span style={errSt}>{codeError}</span>}
             <button
               className="lobby-btn-code"
@@ -514,17 +515,9 @@ export default function LobbyPage() {
               {joiningRoom.players.length}명 참가 중
             </p>
 
-            <input
-              style={inputSt}
-              placeholder="닉네임을 입력하세요"
-              value={joinName}
-              onChange={(e) => setJoinName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
-              autoFocus
-            />
-            {joinError && <span style={{ ...errSt, marginTop: '4px' }}>{joinError}</span>}
+            {joinError && <span style={errSt}>{joinError}</span>}
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
               <button
                 className="modal-cancel"
                 onClick={() => setJoiningRoom(null)}
