@@ -68,6 +68,7 @@ export default function ProfilePage() {
     if (!user) return
     void (async () => {
       setStatsLoading(true)
+      setFetchError(false)
       try {
         const [s, g] = await Promise.all([getMyStats(), getMyGames()])
         setStats(s)
