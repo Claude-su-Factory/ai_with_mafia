@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"encoding/base64"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"os/signal"
 	"syscall"
@@ -167,6 +171,21 @@ func main() {
 	// --- Recover orphan games ---
 	recoverOrphanGames(ctx, gm, gameStateRepo, aiHistoryRepo, roomSvc, logger)
 
+	// --- JWT Public Key (ES256 / Supabase JWK) ---
+	xBytes, err := base64.RawURLEncoding.DecodeString(cfg.Supabase.JWTPublicKeyX)
+	if err != nil {
+		logger.Fatal("invalid jwt_public_key_x", zap.Error(err))
+	}
+	yBytes, err := base64.RawURLEncoding.DecodeString(cfg.Supabase.JWTPublicKeyY)
+	if err != nil {
+		logger.Fatal("invalid jwt_public_key_y", zap.Error(err))
+	}
+	jwtPubKey := &ecdsa.PublicKey{
+		Curve: elliptic.P256(),
+		X:     new(big.Int).SetBytes(xBytes),
+		Y:     new(big.Int).SetBytes(yBytes),
+	}
+
 	// --- Fiber App ---
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -177,7 +196,7 @@ func main() {
 	app.Use(cors.New())
 
 	// HTTP routes
-	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, gameResultRepo, cfg.Supabase.JWTSecret)
+	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, gameResultRepo, jwtPubKey)
 	handler.RegisterRoutes(app)
 
 	// WebSocket upgrade middleware
@@ -191,7 +210,7 @@ func main() {
 	app.Get("/ws/rooms/:id", fiberws.New(func(c *fiberws.Conn) {
 		roomID := c.Params("id")
 		tokenStr := c.Query("token")
-		authID, _, err := platform.ValidateJWT(tokenStr, cfg.Supabase.JWTSecret)
+		authID, _, err := platform.ValidateJWT(tokenStr, jwtPubKey)
 		if err != nil {
 			logger.Warn("ws: invalid token", zap.String("room_id", roomID), zap.Error(err))
 			_ = c.Close()

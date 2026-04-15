@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 
@@ -15,18 +16,16 @@ type supabaseClaims struct {
 	} `json:"user_metadata"`
 }
 
-// ValidateJWT validates a Supabase HS256 JWT and returns (authID, displayName, error).
-// authID is the Supabase user UUID (JWT "sub" claim).
-// displayName is taken from user_metadata.full_name, falling back to user_metadata.name.
-func ValidateJWT(tokenStr, secret string) (authID, displayName string, err error) {
+// ValidateJWT validates a Supabase ES256 JWT and returns (authID, displayName, error).
+func ValidateJWT(tokenStr string, pubKey *ecdsa.PublicKey) (authID, displayName string, err error) {
 	if tokenStr == "" {
 		return "", "", errors.New("empty token")
 	}
 	token, err := jwt.ParseWithClaims(tokenStr, &supabaseClaims{}, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+		if _, ok := t.Method.(*jwt.SigningMethodECDSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
-		return []byte(secret), nil
+		return pubKey, nil
 	})
 	if err != nil {
 		return "", "", err

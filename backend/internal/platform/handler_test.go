@@ -29,7 +29,7 @@ func (m *mockHub) ForceRemove(_, _ string)    {}
 func setupApp(t *testing.T) (*fiber.App, *RoomService) {
 	t.Helper()
 	svc := NewRoomService(nil, zap.NewNop())
-	h := NewHandler(svc, &mockHub{}, nil, nil, nil, "")
+	h := NewHandler(svc, &mockHub{}, nil, nil, nil, nil)
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

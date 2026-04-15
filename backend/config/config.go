@@ -15,7 +15,8 @@ type Config struct {
 }
 
 type SupabaseConfig struct {
-	JWTSecret string `toml:"jwt_secret"`
+	JWTPublicKeyX string `toml:"jwt_public_key_x"`
+	JWTPublicKeyY string `toml:"jwt_public_key_y"`
 }
 
 type ServerConfig struct {

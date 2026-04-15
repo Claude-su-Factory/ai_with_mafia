@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"crypto/ecdsa"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -16,7 +17,7 @@ type Handler struct {
 	userRepo       *repository.UserRepository
 	sessionRepo    *repository.SessionRepository
 	gameResultRepo *repository.GameResultRepository
-	jwtSecret      string
+	jwtPublicKey   *ecdsa.PublicKey
 }
 
 // GameHub is implemented by ws.Hub; defined here to avoid circular imports.
@@ -32,7 +33,7 @@ func NewHandler(
 	userRepo *repository.UserRepository,
 	sessionRepo *repository.SessionRepository,
 	gameResultRepo *repository.GameResultRepository,
-	jwtSecret string,
+	jwtPublicKey *ecdsa.PublicKey,
 ) *Handler {
 	return &Handler{
 		rooms:          rooms,
@@ -40,7 +41,7 @@ func NewHandler(
 		userRepo:       userRepo,
 		sessionRepo:    sessionRepo,
 		gameResultRepo: gameResultRepo,
-		jwtSecret:      jwtSecret,
+		jwtPublicKey:   jwtPublicKey,
 	}
 }
 
@@ -63,7 +64,7 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 // resolvePlayer validates the JWT and returns the caller's player_id.
 func (h *Handler) resolvePlayer(c *fiber.Ctx) (string, error) {
 	tokenStr := strings.TrimPrefix(c.Get("Authorization"), "Bearer ")
-	authID, displayName, err := ValidateJWT(tokenStr, h.jwtSecret)
+	authID, displayName, err := ValidateJWT(tokenStr, h.jwtPublicKey)
 	if err != nil {
 		return "", err
 	}
@@ -74,7 +75,7 @@ func (h *Handler) resolvePlayer(c *fiber.Ctx) (string, error) {
 // Used for room entry so the stored (possibly custom) nickname is used, not the JWT name.
 func (h *Handler) resolvePlayerFull(c *fiber.Ctx) (playerID, displayName string, err error) {
 	tokenStr := strings.TrimPrefix(c.Get("Authorization"), "Bearer ")
-	authID, jwtName, err := ValidateJWT(tokenStr, h.jwtSecret)
+	authID, jwtName, err := ValidateJWT(tokenStr, h.jwtPublicKey)
 	if err != nil {
 		return "", "", err
 	}
