@@ -1,7 +1,9 @@
 package platform
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"errors"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,12 +13,36 @@ import (
 	"ai-playground/internal/repository"
 )
 
+// respondPlayerErr writes the appropriate HTTP error response for resolvePlayer /
+// resolvePlayerFull failures. Server-side errors (e.g., nil userRepo) return 500;
+// all auth failures return 401.
+func respondPlayerErr(c *fiber.Ctx, err error) error {
+	var fiberErr *fiber.Error
+	if errors.As(err, &fiberErr) && fiberErr.Code == fiber.StatusInternalServerError {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
+	}
+	return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+}
+
+// UserStore is the subset of repository.UserRepository used by Handler.
+type UserStore interface {
+	GetOrCreate(ctx context.Context, authID, displayName string) (string, error)
+	GetDisplayName(ctx context.Context, playerID string) (string, error)
+	UpdateDisplayName(ctx context.Context, playerID, displayName string) error
+}
+
+// GameResultStore is the subset of repository.GameResultRepository used by Handler.
+type GameResultStore interface {
+	GetStatsByPlayerID(ctx context.Context, playerID string) (repository.PlayerStats, error)
+	GetRecentGamesByPlayerID(ctx context.Context, playerID string, limit int) ([]repository.PlayerGameRecord, error)
+}
+
 type Handler struct {
 	rooms          *RoomService
 	gameHub        GameHub
-	userRepo       *repository.UserRepository
+	userRepo       UserStore
 	sessionRepo    *repository.SessionRepository
-	gameResultRepo *repository.GameResultRepository
+	gameResultRepo GameResultStore
 	jwtPublicKey   *ecdsa.PublicKey
 }
 
@@ -30,9 +56,9 @@ type GameHub interface {
 func NewHandler(
 	rooms *RoomService,
 	hub GameHub,
-	userRepo *repository.UserRepository,
+	userRepo UserStore,
 	sessionRepo *repository.SessionRepository,
-	gameResultRepo *repository.GameResultRepository,
+	gameResultRepo GameResultStore,
 	jwtPublicKey *ecdsa.PublicKey,
 ) *Handler {
 	return &Handler{
@@ -68,6 +94,9 @@ func (h *Handler) resolvePlayer(c *fiber.Ctx) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if h.userRepo == nil {
+		return "", fiber.ErrInternalServerError
+	}
 	return h.userRepo.GetOrCreate(c.Context(), authID, displayName)
 }
 
@@ -78,6 +107,9 @@ func (h *Handler) resolvePlayerFull(c *fiber.Ctx) (playerID, displayName string,
 	authID, jwtName, err := ValidateJWT(tokenStr, h.jwtPublicKey)
 	if err != nil {
 		return "", "", err
+	}
+	if h.userRepo == nil {
+		return "", "", fiber.ErrInternalServerError
 	}
 	playerID, err = h.userRepo.GetOrCreate(c.Context(), authID, jwtName)
 	if err != nil {
@@ -114,12 +146,9 @@ func (h *Handler) checkActiveSession(c *fiber.Ctx, playerID string) bool {
 func (h *Handler) me(c *fiber.Ctx) error {
 	playerID, err := h.resolvePlayer(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
-	displayName := ""
-	if h.userRepo != nil {
-		displayName, _ = h.userRepo.GetDisplayName(c.Context(), playerID)
-	}
+	displayName, _ := h.userRepo.GetDisplayName(c.Context(), playerID)
 	return c.JSON(fiber.Map{"player_id": playerID, "display_name": displayName})
 }
 
@@ -130,7 +159,7 @@ type updateMeRequest struct {
 func (h *Handler) updateMe(c *fiber.Ctx) error {
 	playerID, err := h.resolvePlayer(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	var req updateMeRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -139,9 +168,6 @@ func (h *Handler) updateMe(c *fiber.Ctx) error {
 	name := strings.TrimSpace(req.DisplayName)
 	if name == "" || len([]rune(name)) > 50 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid display_name"})
-	}
-	if h.userRepo == nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "not available"})
 	}
 	if err := h.userRepo.UpdateDisplayName(c.Context(), playerID, name); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -152,7 +178,7 @@ func (h *Handler) updateMe(c *fiber.Ctx) error {
 func (h *Handler) myStats(c *fiber.Ctx) error {
 	playerID, err := h.resolvePlayer(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	if h.gameResultRepo == nil {
 		return c.JSON(fiber.Map{
@@ -183,7 +209,7 @@ func (h *Handler) myStats(c *fiber.Ctx) error {
 func (h *Handler) myGames(c *fiber.Ctx) error {
 	playerID, err := h.resolvePlayer(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	limit := c.QueryInt("limit", 20)
 	if h.gameResultRepo == nil {
@@ -228,7 +254,7 @@ func (h *Handler) getRoom(c *fiber.Ctx) error {
 func (h *Handler) createRoom(c *fiber.Ctx) error {
 	playerID, displayName, err := h.resolvePlayerFull(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	if h.checkActiveSession(c, playerID) {
 		return nil
@@ -253,7 +279,7 @@ func (h *Handler) createRoom(c *fiber.Ctx) error {
 func (h *Handler) joinRoom(c *fiber.Ctx) error {
 	playerID, displayName, err := h.resolvePlayerFull(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	if h.checkActiveSession(c, playerID) {
 		return nil
@@ -278,7 +304,7 @@ func (h *Handler) joinRoom(c *fiber.Ctx) error {
 func (h *Handler) joinByCode(c *fiber.Ctx) error {
 	playerID, displayName, err := h.resolvePlayerFull(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	if h.checkActiveSession(c, playerID) {
 		return nil
@@ -303,7 +329,7 @@ func (h *Handler) joinByCode(c *fiber.Ctx) error {
 func (h *Handler) startGame(c *fiber.Ctx) error {
 	playerID, err := h.resolvePlayer(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	roomID := c.Params("id")
 	room, err := h.rooms.GetByID(roomID)
@@ -325,7 +351,7 @@ func (h *Handler) startGame(c *fiber.Ctx) error {
 func (h *Handler) restartGame(c *fiber.Ctx) error {
 	playerID, err := h.resolvePlayer(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return respondPlayerErr(c, err)
 	}
 	roomID := c.Params("id")
 	room, err := h.rooms.GetByID(roomID)
