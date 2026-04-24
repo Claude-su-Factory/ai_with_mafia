@@ -26,12 +26,12 @@
    - Prompt cache hit rate ≥ 70%
    - Ad impressions 3 슬롯 모두 관측
    - Quick match p95 ≤ 3s, 성공률 ≥ 95%
+   - Metric coverage: `missing = 0`
    - 2-Pod rate limiter 429 검증
-2. **Tier 2 · Phase A follow-up: `game_id` vs `room_id` 분리** — 현재 AI usage 가 `room_id` 를 `game_id` 자리에 기록 중. 게임 생명주기 훅에 `GameMetricsRepository.Create` 연결 (ROADMAP T2-0b)
-3. **Phase B 브레인스토밍** — 검증 데이터를 바탕으로 B/C/D 중 다음 대상 확정. 후보: 보상형 광고 + 초대 링크, 또는 새 역할 (Phase C)
-4. **Tier 1 · 원격 푸시 전략 결정** (보류 가능 — 외부 노출 0)
-5. **Tier 2 · backend/frontend Dockerfile 작성** (multi-stage, scratch/distroless)
-6. **Tier 2 · GitHub Actions CI** (`go test ./...`, `vite build`, `tsc --noEmit`)
+2. **Phase B 브레인스토밍** — 검증 데이터를 바탕으로 B/C/D 중 다음 대상 확정. 후보: 보상형 광고 + 초대 링크, 또는 새 역할 (Phase C)
+3. **Tier 1 · 원격 푸시 전략 결정** (보류 가능 — 외부 노출 0)
+4. **Tier 2 · backend/frontend Dockerfile 작성** (multi-stage, scratch/distroless)
+5. **Tier 2 · GitHub Actions CI** (`go test ./...`, `vite build`, `tsc --noEmit`)
 
 ---
 
@@ -98,11 +98,11 @@
   - Phase C — 새 역할 or 방 사이즈 가변 (후 `ai_count` 분포 보고 결정)
   - Phase D — 랭킹 + 시즌 (C 확정 후)
 
-### T2-0b. Phase A follow-up: `game_id` vs `room_id` 분리
-- [ ] 현재 `GameMetricsRepository.AddAIUsage` 가 `game_id = room_id` 로 기록 중 (T12 known concern)
-- [ ] `GameMetricsRepository.Create` / `Finalize` 를 실제 게임 생명주기에 훅 — 매 게임마다 고유 `game_id` (UUID) 발급 후 metric row 생성
-- [ ] 영향: 방 1개에서 연속 게임 플레이 시 토큰 카운터가 누적되는 현상 해소 → cohort 분석 정확도 향상
-- 우선순위: Phase A 검증 결과 확인 후 필요성 판단
+### T2-0b. Phase A follow-up: `game_id` vs `room_id` 분리 (✅ T21 완료 · 2026-04-24 · `503e9ea`)
+- [x] `GameMetricsRepository.Create` / `Finalize` 를 게임 생명주기에 훅
+- [x] `game_results.id` ↔ `game_metrics.game_id` 를 동일 UUID 로 통일 (GameManager.start 에서 pre-generate)
+- [x] `ai.Manager.SpawnAgents` / `AddAgent` 에 gameID 파라미터 추가, T12 `gameID := roomID` 플레이스홀더 제거
+- [x] Runbook §5 쿼리 수정 (`ended_at` → `created_at`, `game_id` join)
 
 ### T2-5b. 경계면 drift 정리 (2026-04-24 QA 발견 → 당일 해결)
 - [x] **D1 (Critical)** `game_over` all_humans_left path — `buildAbortedGameOverPayload()` 헬퍼로 full-shape `{winner: "aborted", round, duration_sec, players: [], reason}` 전송 (TDD RED→GREEN). 프론트 `GameOverResult.winner` 에 `'aborted'` 추가, ResultOverlay 에 "게임 중단" 분기 추가
