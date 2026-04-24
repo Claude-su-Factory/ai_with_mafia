@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -42,12 +43,13 @@ type GameResultStore interface {
 }
 
 type Handler struct {
-	rooms          *RoomService
-	gameHub        GameHub
-	userRepo       UserStore
-	sessionRepo    *repository.SessionRepository
-	gameResultRepo GameResultStore
-	jwtPublicKey   *ecdsa.PublicKey
+	rooms           *RoomService
+	gameHub         GameHub
+	userRepo        UserStore
+	sessionRepo     *repository.SessionRepository
+	gameResultRepo  GameResultStore
+	gameMetricsRepo *repository.GameMetricsRepository
+	jwtPublicKey    *ecdsa.PublicKey
 }
 
 // GameHub is implemented by ws.Hub; defined here to avoid circular imports.
@@ -63,15 +65,17 @@ func NewHandler(
 	userRepo UserStore,
 	sessionRepo *repository.SessionRepository,
 	gameResultRepo GameResultStore,
+	gameMetricsRepo *repository.GameMetricsRepository,
 	jwtPublicKey *ecdsa.PublicKey,
 ) *Handler {
 	return &Handler{
-		rooms:          rooms,
-		gameHub:        hub,
-		userRepo:       userRepo,
-		sessionRepo:    sessionRepo,
-		gameResultRepo: gameResultRepo,
-		jwtPublicKey:   jwtPublicKey,
+		rooms:           rooms,
+		gameHub:         hub,
+		userRepo:        userRepo,
+		sessionRepo:     sessionRepo,
+		gameResultRepo:  gameResultRepo,
+		gameMetricsRepo: gameMetricsRepo,
+		jwtPublicKey:    jwtPublicKey,
 	}
 }
 
@@ -311,6 +315,7 @@ func (h *Handler) joinRoom(c *fiber.Ctx) error {
 }
 
 func (h *Handler) quickMatch(c *fiber.Ctx) error {
+	start := time.Now()
 	playerID, displayName, err := h.resolvePlayerFull(c)
 	if err != nil {
 		return respondPlayerErr(c, err)
@@ -320,6 +325,18 @@ func (h *Handler) quickMatch(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).
 			JSON(fiber.Map{"error": err.Error()})
+	}
+
+	latency := int(time.Since(start).Milliseconds())
+	result := "joined"
+	if created {
+		result = "created"
+	}
+	// Record on the lobby sentinel row (no game has started yet at quick-match time).
+	// Fail-open: metric write failures do not block the UX.
+	if h.gameMetricsRepo != nil {
+		sentinel := "lobby-" + time.Now().UTC().Format("2006-01-02")
+		_ = h.gameMetricsRepo.RecordQuickMatch(c.Context(), sentinel, result, latency)
 	}
 
 	return c.JSON(fiber.Map{

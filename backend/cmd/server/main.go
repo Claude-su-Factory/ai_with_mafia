@@ -82,7 +82,6 @@ func main() {
 	userRepo := repository.NewUserRepository(pool)
 	sessionRepo := repository.NewSessionRepository(rdb)
 	gameMetricsRepo := repository.NewGameMetricsRepository(pool)
-	_ = gameMetricsRepo // wired into ai.Manager + handler in later tasks
 
 	// --- Room Service ---
 	roomSvc := platform.NewRoomService(pool, logger)
@@ -95,7 +94,7 @@ func main() {
 		logger.Fatal("ai.api_key is not set in config")
 	}
 	personaPool := ai.NewPersonaPool(cfg.Personas)
-	aiManager := ai.NewManager(&cfg.AI, personaPool, cfg.AI.APIKey, logger, aiHistoryRepo)
+	aiManager := ai.NewManager(&cfg.AI, personaPool, cfg.AI.APIKey, logger, aiHistoryRepo, &aiMetricsAdapter{repo: gameMetricsRepo})
 
 	// --- Game Manager ---
 	gm := platform.NewGameManager(&cfg.Game.Mafia, aiManager, personaPool, leaderLock, instanceID, gameStateRepo, aiHistoryRepo, gameResultRepo, roomSvc, logger)
@@ -198,7 +197,7 @@ func main() {
 	app.Use(cors.New())
 
 	// HTTP routes
-	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, gameResultRepo, jwtPubKey)
+	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, gameResultRepo, gameMetricsRepo, jwtPubKey)
 	handler.RegisterRoutes(app)
 
 	// WebSocket upgrade middleware
@@ -305,4 +304,19 @@ func recoverOrphanGames(
 			logger.Info("game recovered", zap.String("room_id", state.RoomID))
 		}
 	}
+}
+
+// aiMetricsAdapter bridges ai.MetricsSink (takes ai.AIUsage) to the concrete
+// repository.GameMetricsRepository (takes repository.AIUsage). The two structs
+// are field-for-field identical so a direct value conversion is safe — keeping
+// internal/ai free of a type-level dependency on the concrete repo type.
+type aiMetricsAdapter struct {
+	repo *repository.GameMetricsRepository
+}
+
+func (a *aiMetricsAdapter) AddAIUsage(ctx context.Context, gameID string, u ai.AIUsage) error {
+	if a == nil || a.repo == nil {
+		return nil
+	}
+	return a.repo.AddAIUsage(ctx, gameID, repository.AIUsage(u))
 }

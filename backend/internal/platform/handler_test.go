@@ -54,7 +54,7 @@ func setupAppWithAuth(t *testing.T) (*fiber.App, *RoomService, func(sub string) 
 	}
 	svc := NewRoomService(nil, zap.NewNop())
 	userStore := &mockUserStore{playerID: "player-1", displayName: "테스터"}
-	h := NewHandler(svc, &mockHub{}, userStore, nil, nil, &privKey.PublicKey)
+	h := NewHandler(svc, &mockHub{}, userStore, nil, nil, nil, &privKey.PublicKey)
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -100,7 +100,7 @@ func (m *mockHub) ForceRemove(_, _ string)    {}
 func setupApp(t *testing.T) (*fiber.App, *RoomService) {
 	t.Helper()
 	svc := NewRoomService(nil, zap.NewNop())
-	h := NewHandler(svc, &mockHub{}, nil, nil, nil, nil)
+	h := NewHandler(svc, &mockHub{}, nil, nil, nil, nil, nil)
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -565,7 +565,7 @@ func setupAppNilUserRepo(t *testing.T) (*fiber.App, func(sub string) string) {
 		t.Fatalf("generate ecdsa key: %v", err)
 	}
 	svc := NewRoomService(nil, zap.NewNop())
-	h := NewHandler(svc, &mockHub{}, nil, nil, nil, &privKey.PublicKey)
+	h := NewHandler(svc, &mockHub{}, nil, nil, nil, nil, &privKey.PublicKey)
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -620,7 +620,7 @@ func setupAppWithUserStore(t *testing.T, store UserStore) (*fiber.App, func(sub 
 		t.Fatalf("generate ecdsa key: %v", err)
 	}
 	svc := NewRoomService(nil, zap.NewNop())
-	h := NewHandler(svc, &mockHub{}, store, nil, nil, &privKey.PublicKey)
+	h := NewHandler(svc, &mockHub{}, store, nil, nil, nil, &privKey.PublicKey)
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

@@ -13,6 +13,15 @@ import (
 	"ai-playground/internal/repository"
 )
 
+// MetricsSink is the repository.GameMetricsRepository surface used by Manager
+// for emitting per-turn AI usage counters. Defined here so internal/ai does not
+// depend on the concrete repository type at the type-parameter boundary — the
+// real implementation lives in internal/repository, bridged via an adapter in
+// main.go that performs the repository.AIUsage(u) value conversion.
+type MetricsSink interface {
+	AddAIUsage(ctx context.Context, gameID string, u AIUsage) error
+}
+
 type Manager struct {
 	mu            sync.Mutex
 	agents        map[string]map[string]*Agent // roomID -> playerID -> agent
@@ -22,6 +31,7 @@ type Manager struct {
 	client        *anthropic.Client
 	logger        *zap.Logger
 	aiHistoryRepo *repository.AIHistoryRepository
+	metrics       MetricsSink
 
 	// outCh receives outputs from all agents and routes them
 	broadcast func(roomID string, playerID, playerName, message string, mafiaOnly bool)
@@ -35,6 +45,7 @@ func NewManager(
 	apiKey string,
 	logger *zap.Logger,
 	historyRepo *repository.AIHistoryRepository,
+	metrics MetricsSink,
 ) *Manager {
 	client := anthropic.NewClient(option.WithAPIKey(apiKey))
 	return &Manager{
@@ -45,6 +56,7 @@ func NewManager(
 		client:        &client,
 		logger:        logger,
 		aiHistoryRepo: historyRepo,
+		metrics:       metrics,
 	}
 }
 
@@ -122,6 +134,17 @@ func (m *Manager) SpawnAgents(ctx context.Context, roomID string, players []*ent
 		if preloadedHistories != nil {
 			if h, ok := preloadedHistories[p.ID]; ok {
 				a.history = h
+			}
+		}
+		// Wire per-turn usage hook into the metrics sink. roomID is used as
+		// the game_id key today; Manager does not yet carry a distinct game_id
+		// at spawn time (see Task 12 DONE_WITH_CONCERNS note). Closure captures
+		// ctx + roomID so agent goroutines don't need to know about metrics.
+		if m.metrics != nil {
+			gameID := roomID
+			sink := m.metrics
+			a.onUsage = func(u AIUsage) {
+				_ = sink.AddAIUsage(ctx, gameID, u)
 			}
 		}
 		agents[p.ID] = a
@@ -205,6 +228,15 @@ func (m *Manager) AddAgent(ctx context.Context, roomID string, playerID string, 
 	}
 
 	a := NewAgent(playerID, persona, role, allies, m.cfg, m.client, m.logger)
+
+	// Wire per-turn usage hook (see SpawnAgents for the roomID-as-gameID note).
+	if m.metrics != nil {
+		gameID := roomID
+		sink := m.metrics
+		a.onUsage = func(u AIUsage) {
+			_ = sink.AddAIUsage(ctx, gameID, u)
+		}
+	}
 
 	if m.agents[roomID] == nil {
 		m.agents[roomID] = make(map[string]*Agent)
