@@ -185,6 +185,16 @@ sendAction('kill',  { night: { action_type: 'kill', target_id } })
 - **Why:** 방 목록·플레이 유입을 검색에서 확보
 - **How:** `react-helmet-async` 또는 Vite 빌드 시 정적 메타 주입. ROADMAP Tier 2 로 점진 추가
 
+### 4.12 제품 원칙: Unit Economics 렌즈 (2026-04-24 ~)
+- **결정:** 모든 기능 결정은 **비용 · 수익 · 리텐션 · 인간 밀도** 4축으로 판단한다
+- **Why:** 이 플랫폼은 Claude API 비용을 광고 수익으로 감당하는 구조다. 비용이 수익을 초과하면 성장 자체가 손실을 확대한다. 재미가 부족하면 유입은 있어도 리텐션이 0이고, 광고 노출 기회가 사라져 수익 구조가 무너진다. 따라서 "재미"와 "수익"은 같은 제약 안에서 동시에 최적화되어야 하며, 어느 한쪽만 고려한 결정은 지속 불가능하다
+- **How:**
+  - 기능 제안 시 scorecard 작성: Impact / Effort / ROI + 각 축 영향 한 줄씩
+  - ROADMAP 의 Tier 배치에도 동일 렌즈 적용 (Tier 1 = 4축 중 둘 이상에 즉각 positive)
+  - 구체 기능 spec 은 `docs/superpowers/specs/*.md` 에 축별 영향을 섹션으로 기록
+  - Phase A 가 측정 기반(`game_metrics` 테이블 + 로그 태깅) 을 구축하여 이후 Phase의 ROI 를 실측 가능하게 만든다
+- **연결 문서:** CLAUDE.md "Product Principle: Unit Economics 렌즈" 섹션
+
 ---
 
 ## 5. 데이터 모델 요약

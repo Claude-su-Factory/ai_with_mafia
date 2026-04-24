@@ -19,6 +19,28 @@
 
 ---
 
+## Product Principle: Unit Economics 렌즈 (MANDATORY)
+
+이 플랫폼은 **Claude API 비용을 광고 수익으로 감당하는 구조** 다. 모든 기능·설계 결정은 아래 **4축**을 먼저 통과해야 한다. 통과 못 하면 기능이 아무리 매력적이어도 scope에서 제외하거나 뒤로 미룬다.
+
+| 축 | 질문 | 관련 지표 |
+|---|------|----------|
+| **① 비용 (Cost)** | 이 기능이 Claude API · 인프라 비용을 얼마나 변화시키는가? | 토큰/게임, AI 플레이어 수, 턴 수, prompt cache hit rate |
+| **② 수익 (Revenue)** | 광고 impression · ARPU를 얼마나 올리는가? 노출 포인트가 생기는가? | impression/세션, CTR, 슬롯 활용률 |
+| **③ 리텐션 (Retention)** | 세션·재방문·판수/세션을 얼마나 늘리는가? | D1/D7 retention, 세션당 판수, 세션 길이 |
+| **④ 인간 밀도 (Human Density)** | 6인 중 인간 비율이 올라가 AI 비용이 줄어드는가? | humans/game 평균, AI replacement 빈도 |
+
+**판단 규칙:**
+- 네 축 중 **최소 둘에 긍정적**이지 않으면 해당 Phase에서 제외하거나 축소
+- "재미는 있지만 경제적으로 의미 없는" 기능 → skip or defer
+- "비용만 줄이고 재미 해치는" 기능 → skip
+- 기능을 ROADMAP에 올릴 때 **4축 영향**을 한 줄씩 명시한다
+- 설계 결정은 `docs/ARCHITECTURE.md` "핵심 설계 결정" 섹션에 Why/How와 함께 기록 (상세: ARCHITECTURE 4.12)
+
+**측정 지점:** Phase A(`2026-04-24-phase-a-unit-economics-foundation-design.md`)가 이 지표들을 구조화해 로깅·DB에 기록한다. 이후 모든 Phase는 해당 데이터를 근거로 ROI를 재평가한다.
+
+---
+
 ## 개발 워크플로우 (MANDATORY)
 
 모든 세션은 아래 순서를 **예외 없이** 따른다.
