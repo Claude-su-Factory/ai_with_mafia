@@ -85,6 +85,9 @@
 
 ## 최근 변경 이력 (최신순)
 
+- **2026-04-24** · 코드 리뷰 피드백 반영: `respondPlayerErr` DB 에러 → 500 분류 수정, `resolvePlayerFull` 500 경로 테스트 추가 (+3 tests), `backend/server` 바이너리 untrack, `.dockerignore` markdown negate 단순화, `.gitignore` 중복 제거, CLAUDE.md 현재 상태 갱신
+- **2026-04-24** · `3c0db5f` docs: 원격 없음 반영 — secret을 "치명적"에서 "푸시 전 필수"로 재분류
+- **2026-04-24** · `09260d1` docs: STATUS/ROADMAP을 secret 분리 후 상태로 동기화
 - **2026-04-24** · `abc86c2` secret 분리: `.gitignore`/`.dockerignore` 작성, `config.toml`·`.env.development`·`.env.production` 트래킹 해제, `config.example.toml`·`.env.example` 추가
 - **2026-04-24** · `231e57f` Handler에 UserStore/GameResultStore 인터페이스 추출 + 테스트 9개 (2026-04-17 기준 미커밋 작업 정리)
 - **2026-04-24** · `139d97b` 하네스 엔지니어링: `docs/STATUS.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md` 신설, CLAUDE.md에 문서/배포/스킬 라우팅 규칙 추가

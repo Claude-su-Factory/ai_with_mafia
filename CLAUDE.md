@@ -196,9 +196,11 @@
 
 ### 현재 상태
 
-- ❌ 배포 스택 미구현. `docker-compose.yml`(postgres + redis) 만 존재
-- ❌ `.gitignore` · `.dockerignore` · Dockerfile · k8s 매니페스트 부재
-- ❌ `backend/config.toml` 이 git 에 트래킹되고 있음 → ROADMAP Tier 1 최우선
+- ✅ 로컬 `docker-compose.yml`(postgres + redis)
+- ✅ `.gitignore` · `.dockerignore` · `backend/config.example.toml` · `frontend/.env.example` 정비 (`abc86c2`)
+- ✅ `backend/config.toml` · `frontend/.env.development` · `.env.production` git 트래킹 해제 (`abc86c2`)
+- ❌ `Dockerfile` (backend·frontend), k8s 매니페스트, CI/CD 파이프라인 미구현 (ROADMAP T2-1~T2-3)
+- 🟠 과거 커밋에는 secret이 잔존 — **remote push 전에 `git filter-repo` 또는 새 `git init` 로 정리 필요** (현재 원격 없으므로 외부 노출 0)
 
 ---
 

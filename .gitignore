@@ -3,12 +3,11 @@
 backend/config.toml
 backend/config.local.toml
 
-# Frontend env — real keys (dev/prod/local). Only .env.example is tracked
+# Frontend env — real keys (dev/prod/local). Only .env.example is tracked.
+# Note: frontend/.gitignore already covers *.local; do not duplicate that here.
 frontend/.env
-frontend/.env.local
 frontend/.env.development
 frontend/.env.production
-frontend/.env.*.local
 
 # Doppler / secret managers
 .doppler/
