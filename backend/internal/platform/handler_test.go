@@ -823,6 +823,35 @@ func TestQuickMatch_Unauthorized(t *testing.T) {
 	}
 }
 
+// ─── POST /api/metrics/ad (Phase A §3-B) ─────────────────────────────────────
+
+func TestAdMetrics_ValidSlot_Returns204(t *testing.T) {
+	app, _, _ := setupAppWithAuth(t)
+	req := httptest.NewRequest("POST", "/api/metrics/ad",
+		jsonBody(`{"slot":"waiting","game_id":"g-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusNoContent {
+		t.Errorf("status = %d, want 204", resp.StatusCode)
+	}
+}
+
+func TestAdMetrics_UnknownSlot_Returns400(t *testing.T) {
+	app, _, _ := setupAppWithAuth(t)
+	req := httptest.NewRequest("POST", "/api/metrics/ad",
+		jsonBody(`{"slot":"bogus"}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, _ := app.Test(req)
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 func newTestAIPlayer(id string) *entity.Player {

@@ -94,6 +94,7 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	api.Post("/rooms/:id/start", h.startGame)
 	api.Post("/rooms/:id/restart", h.restartGame)
 	api.Post("/rooms/:id/leave", h.leaveRoom)
+	api.Post("/metrics/ad", h.adMetric)
 }
 
 // resolvePlayer validates the JWT and returns the caller's player_id.
@@ -427,6 +428,33 @@ func (h *Handler) leaveRoom(c *fiber.Ctx) error {
 	h.gameHub.ForceRemove(req.PlayerID, roomID)
 	if h.sessionRepo != nil {
 		_ = h.sessionRepo.Delete(c.Context(), req.PlayerID)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// adMetricRequest is the body for POST /api/metrics/ad.
+type adMetricRequest struct {
+	Slot   string `json:"slot"`
+	GameID string `json:"game_id"`
+}
+
+// adMetric increments the per-slot ad impression counter. Public trigger,
+// no JWT required (spec §3-B). Rate limiting is applied at the middleware
+// layer (T15/T16), not here.
+func (h *Handler) adMetric(c *fiber.Ctx) error {
+	var body adMetricRequest
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid body"})
+	}
+	switch body.Slot {
+	case "lobby", "waiting", "result":
+		// ok
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "unknown slot"})
+	}
+	if h.gameMetricsRepo != nil {
+		// fail-open on error — metric write failure must not block the client
+		_ = h.gameMetricsRepo.IncrementAdImpression(c.Context(), body.Slot, body.GameID)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
