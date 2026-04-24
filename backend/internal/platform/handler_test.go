@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -857,3 +858,94 @@ func TestAdMetrics_UnknownSlot_Returns400(t *testing.T) {
 func newTestAIPlayer(id string) *entity.Player {
 	return entity.NewPlayer(id, "AI봇", true)
 }
+
+// TestAdMetrics_RateLimited_WithStorage verifies that when a storage is
+// provided to the limiter, the 31st request from a single IP within the
+// window gets 429. Uses an in-memory storage to avoid Redis dependency in tests.
+func TestAdMetrics_RateLimited_WithStorage(t *testing.T) {
+	// Fiber's middleware/limiter default storage is in-memory — construct a
+	// fresh one per test via limiter.ConfigDefault if exposed, otherwise pass
+	// an empty ad-hoc impl.
+	//
+	// The simplest path: wrap our own tiny in-memory fiber.Storage for this
+	// test only. Fiber's default in-memory impl is created automatically when
+	// Storage is nil, so we can't easily reuse it.
+	storage := newInMemoryStorage()
+
+	svc := NewRoomService(nil, zap.NewNop())
+	privKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	h := NewHandler(svc, &mockHub{}, &mockUserStore{playerID: "p1"}, nil, nil, nil, &privKey.PublicKey)
+	app := fiber.New()
+	h.RegisterRoutesWithLimiter(app, storage)
+
+	for i := 0; i < 31; i++ {
+		req := httptest.NewRequest("POST", "/api/metrics/ad",
+			jsonBody(`{"slot":"waiting"}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp, _ := app.Test(req)
+		if i < 30 && resp.StatusCode != fiber.StatusNoContent {
+			t.Fatalf("req %d: status = %d, want 204", i, resp.StatusCode)
+		}
+		if i == 30 && resp.StatusCode != fiber.StatusTooManyRequests {
+			t.Errorf("req %d: status = %d, want 429", i, resp.StatusCode)
+		}
+	}
+}
+
+// newInMemoryStorage returns a trivially simple in-memory fiber.Storage impl
+// for test-only use. Fiber's built-in default is goroutine-safe but not
+// exposed as a public constructor we can re-use cleanly.
+func newInMemoryStorage() fiber.Storage {
+	return &memStore{data: map[string]memEntry{}}
+}
+
+type memEntry struct {
+	val []byte
+	exp time.Time
+}
+
+type memStore struct {
+	mu   sync.Mutex
+	data map[string]memEntry
+}
+
+func (m *memStore) Get(key string) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.data[key]
+	if !ok {
+		return nil, nil
+	}
+	if !e.exp.IsZero() && time.Now().After(e.exp) {
+		delete(m.data, key)
+		return nil, nil
+	}
+	return e.val, nil
+}
+
+func (m *memStore) Set(key string, val []byte, exp time.Duration) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var expAt time.Time
+	if exp > 0 {
+		expAt = time.Now().Add(exp)
+	}
+	m.data[key] = memEntry{val: val, exp: expAt}
+	return nil
+}
+
+func (m *memStore) Delete(key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.data, key)
+	return nil
+}
+
+func (m *memStore) Reset() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.data = map[string]memEntry{}
+	return nil
+}
+
+func (m *memStore) Close() error { return nil }

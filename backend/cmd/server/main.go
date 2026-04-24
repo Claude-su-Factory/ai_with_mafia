@@ -198,7 +198,8 @@ func main() {
 
 	// HTTP routes
 	handler := platform.NewHandler(roomSvc, gameHub, userRepo, sessionRepo, gameResultRepo, gameMetricsRepo, jwtPubKey)
-	handler.RegisterRoutes(app)
+	limiterStorage := platform.NewRedisStorage(rdb, "ratelimit")
+	handler.RegisterRoutesWithLimiter(app, limiterStorage)
 
 	// WebSocket upgrade middleware
 	app.Use("/ws", func(c *fiber.Ctx) error {

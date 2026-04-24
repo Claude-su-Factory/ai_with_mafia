@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 
 	"ai-playground/internal/domain/dto"
 	"ai-playground/internal/domain/entity"
@@ -80,6 +81,10 @@ func NewHandler(
 }
 
 func (h *Handler) RegisterRoutes(app *fiber.App) {
+	h.RegisterRoutesWithLimiter(app, nil)
+}
+
+func (h *Handler) RegisterRoutesWithLimiter(app *fiber.App, adLimiterStorage fiber.Storage) {
 	api := app.Group("/api")
 	api.Get("/rooms", h.listRooms)
 	api.Get("/rooms/:id", h.getRoom)
@@ -94,7 +99,22 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	api.Post("/rooms/:id/start", h.startGame)
 	api.Post("/rooms/:id/restart", h.restartGame)
 	api.Post("/rooms/:id/leave", h.leaveRoom)
-	api.Post("/metrics/ad", h.adMetric)
+
+	// Ad metrics group with optional rate limiter.
+	// Phase A §3-B / §4a: 30 req/min per IP, Redis-backed storage when provided
+	// so multi-Pod allowance is not amplified by Pod count.
+	adGroup := api.Group("/metrics")
+	if adLimiterStorage != nil {
+		adGroup.Use(limiter.New(limiter.Config{
+			Max:        30,
+			Expiration: 1 * time.Minute,
+			Storage:    adLimiterStorage,
+			KeyGenerator: func(c *fiber.Ctx) string {
+				return c.IP()
+			},
+		}))
+	}
+	adGroup.Post("/ad", h.adMetric)
 }
 
 // resolvePlayer validates the JWT and returns the caller's player_id.
