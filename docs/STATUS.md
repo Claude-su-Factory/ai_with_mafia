@@ -106,15 +106,16 @@
 
 ## 알려진 결함 (Known Issues)
 
-### 🔴 치명적 (즉시 조치 필요)
+### 🟠 푸시 전 필수 (현재는 로컬 한정)
 
-1. **과거 커밋 히스토리에 Anthropic API key · Supabase anon key 가 노출된 상태**
+1. **로컬 `.git` 히스토리에 Anthropic API key · Supabase anon key 가 남아 있음**
+   - 원격(GitHub) 에 아직 올린 적 없음 → **외부 노출은 현재 0**
    - 현재 시점 트래킹은 해제 완료 (`abc86c2`)
-   - 그러나 `git log` 에 이미 평문으로 남아있음 → **키 rotation 필수**
-   - **사용자 액션:**
-     (a) Anthropic 대시보드에서 기존 키 revoke + 새 키 발급 → `backend/config.toml` 로컬 갱신
-     (b) Supabase 프로젝트에서 anon key/JWT 키 rotation (Settings > API > Rotate)
-     (c) 필요 시 `git filter-repo` 또는 BFG 로 히스토리 정리 후 force push
+   - **푸시 직전에 반드시 처리**:
+     - 옵션 A (권장): `git filter-repo` 또는 BFG 로 과거 커밋의 secret 경로 제거 후 remote 생성
+     - 옵션 B: 현 저장소를 버리고 `git init` 으로 새로 시작 (커밋 이력 포기)
+     - 옵션 C: 그대로 푸시하고 즉시 키 rotation (비추)
+   - 혼자 개발 중이고 아직 clone 공유 안 했다면 옵션 A 또는 B 가 가장 저렴
    - **ROADMAP Tier 1** 참조
 
 ### 🟡 중요 (작업 중·다음 릴리즈)

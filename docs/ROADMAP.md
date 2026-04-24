@@ -20,10 +20,16 @@
 
 ## 현재 추천 다음 작업
 
-1. **Tier 1 · Anthropic / Supabase 키 rotation (사용자 수동 액션)** — 히스토리에 평문 노출된 기존 키 revoke 후 새 키 발급, `backend/config.toml` 로컬 업데이트
-2. **Tier 1 · git 히스토리 정리 (선택)** — `git filter-repo` 또는 BFG 로 과거 커밋의 secret 제거 후 force push 결정
-3. **Tier 2 · backend/frontend Dockerfile 작성** (multi-stage, scratch/distroless)
-4. **Tier 2 · GitHub Actions CI** (`go test ./...`, `vite build`, `tsc --noEmit`)
+> 프로젝트는 아직 GitHub 등 원격에 푸시된 적이 없다. 외부 노출 리스크는 0이므로,
+> 키 rotation 보다 "푸시 전에 로컬 히스토리만 깨끗이 정리" 가 자연스럽다.
+
+1. **Tier 1 · 원격 푸시 전략 결정** — 아래 중 하나로 확정
+   - A. `git filter-repo` 로 과거 커밋의 `backend/config.toml`, `frontend/.env.development`, `frontend/.env.production` 경로 제거 후 remote 생성
+   - B. 기존 히스토리를 버리고 `git init` 으로 새 저장소 시작
+   - C. 원격 없이 당분간 로컬 개발만 지속 (푸시 예정 시점에 다시 판단)
+2. **Tier 2 · backend/frontend Dockerfile 작성** (multi-stage, scratch/distroless)
+3. **Tier 2 · GitHub Actions CI** (`go test ./...`, `vite build`, `tsc --noEmit`)
+4. **Tier 2 · Railway 프로젝트 설정 + Doppler 연결**
 
 ---
 
@@ -34,9 +40,10 @@
 - [x] `.dockerignore` 작성 (`abc86c2`)
 - [x] `backend/config.toml` · `frontend/.env.development` · `.env.production` git 트래킹 해제
 - [x] `backend/config.example.toml` · `frontend/.env.example` 템플릿 제공
-- [ ] **Anthropic API key rotation** (사용자 수동 — 대시보드에서)
-- [ ] **Supabase anon key / JWT 키 rotation** (사용자 수동 — Supabase Settings > API)
-- [ ] 히스토리 정리 여부 결정 (`git filter-repo` / BFG, force push). private repo 이고 clone 수가 적다면 생략 가능하지만 권장
+- [ ] **푸시 전 히스토리 정리** — 아직 원격에 올린 적 없으므로 rotation 보다 히스토리 정리가 저렴
+      - A안: `git filter-repo --path backend/config.toml --path frontend/.env.development --path frontend/.env.production --invert-paths`
+      - B안: 새 저장소로 `git init` 후 현 상태만 커밋
+- [ ] 필요 시 키 rotation (옵션 C 즉 "그대로 푸시" 선택 시 필수, A/B 선택 시 생략 가능)
 - [ ] 운영 환경 secret 주입 경로 확정 (Doppler secret file mount, ARCHITECTURE 4.9)
 - **근거:** ARCHITECTURE 4.9 · 사용자 규칙 "키가 절대 노출 안 됨"
 
