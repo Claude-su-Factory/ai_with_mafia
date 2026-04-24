@@ -37,7 +37,20 @@ export default function ResultOverlay() {
   if (!result || !room || !roomID) return null
 
   const isHost = room.host_id === playerID
+  const isAborted = result.winner === 'aborted'
   const isMafiaWin = result.winner === 'mafia'
+
+  const bannerTitle = isAborted
+    ? '게임 중단'
+    : isMafiaWin
+    ? '마피아의 승리'
+    : '시민의 승리'
+  const bannerMeta = isAborted
+    ? result.reason === 'all_humans_left'
+      ? '모든 플레이어가 나가 게임이 중단되었습니다.'
+      : '게임이 중단되었습니다.'
+    : `${result.round} 라운드 · ${Math.floor(result.duration_sec / 60)}분 ${result.duration_sec % 60}초`
+  const bannerAccentColor = isAborted ? T.textMuted : isMafiaWin ? T.danger : '#3A6A3A'
 
   async function handleRestart() {
     try {
@@ -69,25 +82,27 @@ export default function ResultOverlay() {
         <div style={{
           padding: '32px 32px 24px',
           borderBottom: `1px solid ${T.surfaceBorder}`,
-          background: isMafiaWin
+          background: isAborted
+            ? 'linear-gradient(180deg, rgba(120,111,98,0.08) 0%, transparent 100%)'
+            : isMafiaWin
             ? 'linear-gradient(180deg, rgba(140,31,31,0.12) 0%, transparent 100%)'
             : 'linear-gradient(180deg, rgba(58,106,58,0.10) 0%, transparent 100%)',
         }}>
           <div style={{
             fontFamily: MONO, fontSize: '10px',
-            color: isMafiaWin ? T.danger : '#3A6A3A',
+            color: bannerAccentColor,
             textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '8px',
           }}>
-            게임 종료
+            {isAborted ? '게임 중단' : '게임 종료'}
           </div>
           <h2 style={{
             fontFamily: SERIF, fontSize: '36px', color: T.text,
             margin: '0 0 8px', letterSpacing: '-0.02em', lineHeight: 1.2,
           }}>
-            {isMafiaWin ? '마피아의 승리' : '시민의 승리'}
+            {bannerTitle}
           </h2>
           <div style={{ fontFamily: MONO, fontSize: '11px', color: T.textMuted }}>
-            {result.round} 라운드 · {Math.floor(result.duration_sec / 60)}분 {result.duration_sec % 60}초
+            {bannerMeta}
           </div>
         </div>
 

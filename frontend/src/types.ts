@@ -15,7 +15,11 @@ export interface Room {
   status: 'waiting' | 'playing' | 'finished'
   host_id: string
   visibility: 'public' | 'private'
-  join_code: string
+  // Private rooms carry a 6-letter join code. For public rooms the HTTP
+  // endpoint omits the key entirely (omitempty) and the WS path sends an
+  // empty string — treat absence and empty string equivalently.
+  join_code?: string
+  max_humans: number
   players: Player[]
 }
 
@@ -36,10 +40,13 @@ export interface GameOverResultPlayer {
 }
 
 export interface GameOverResult {
-  winner: 'mafia' | 'citizen'
+  winner: 'mafia' | 'citizen' | 'aborted'
   round: number
   duration_sec: number
   players: GameOverResultPlayer[]
+  // Set only when winner === 'aborted' (e.g. 'all_humans_left').
+  // Frontend should route to a "game aborted" view instead of the normal result screen.
+  reason?: string
 }
 
 export interface ChatMessage {

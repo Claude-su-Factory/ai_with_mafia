@@ -85,6 +85,7 @@
 
 ## 최근 변경 이력 (최신순)
 
+- **2026-04-24** · 경계면 drift D1~D3 TDD 해결: `buildAbortedGameOverPayload` + `buildInitialStateRoomPayload` 헬퍼 추출(+ 유닛 테스트 10건), hub.go가 이를 사용, 프론트 GameOverResult/Room 타입 동기화, ResultOverlay aborted 분기 추가
 - **2026-04-24** · 코드 리뷰 피드백 반영: `respondPlayerErr` DB 에러 → 500 분류 수정, `resolvePlayerFull` 500 경로 테스트 추가 (+3 tests), `backend/server` 바이너리 untrack, `.dockerignore` markdown negate 단순화, `.gitignore` 중복 제거, CLAUDE.md 현재 상태 갱신
 - **2026-04-24** · `3c0db5f` docs: 원격 없음 반영 — secret을 "치명적"에서 "푸시 전 필수"로 재분류
 - **2026-04-24** · `09260d1` docs: STATUS/ROADMAP을 secret 분리 후 상태로 동기화

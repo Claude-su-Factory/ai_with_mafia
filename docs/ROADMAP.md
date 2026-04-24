@@ -84,10 +84,10 @@
 - [ ] `internal/ai` 유닛 테스트 (Anthropic client mock)
 - [ ] Frontend: Vitest + React Testing Library 도입 · LandingPage/LobbyPage 스모크부터
 
-### T2-5b. 경계면 drift 정리 (2026-04-24 QA 발견)
-- [ ] **D1 (Critical)** `game_over` 의 `all_humans_left` path(hub.go:156)가 `{reason}` 만 전송 → 프론트 `GameOverResult` 필드 전부 undefined. 같은 shape 으로 채우거나 별도 이벤트 타입(`game_aborted`)로 분리
-- [ ] **D2** `max_humans` 프론트 Room 타입에 없음 + initial_state.room 에도 누락. types.ts / hub.go 양쪽 보강
-- [ ] **D3** HTTP `RoomResponse.join_code` omitempty vs 프론트 Room `join_code: string` 필수. 프론트를 optional로 낮추거나 백엔드 omitempty 제거
+### T2-5b. 경계면 drift 정리 (2026-04-24 QA 발견 → 당일 해결)
+- [x] **D1 (Critical)** `game_over` all_humans_left path — `buildAbortedGameOverPayload()` 헬퍼로 full-shape `{winner: "aborted", round, duration_sec, players: [], reason}` 전송 (TDD RED→GREEN). 프론트 `GameOverResult.winner` 에 `'aborted'` 추가, ResultOverlay 에 "게임 중단" 분기 추가
+- [x] **D2** `max_humans` drift — `buildInitialStateRoomPayload()` 헬퍼 추출(dto.RoomResponse 정책 미러). hub.go initial_state 가 이를 재사용하여 max_humans 포함. 프론트 Room 타입에 `max_humans: number` 추가
+- [x] **D3** `join_code` 타입 vs omitempty — 프론트 Room `join_code?: string` 로 optional 전환 (공개방 런타임 동작과 정합)
 - 근거: `_workspace/qa_report.md`
 
 ### T2-6. Fiber 성능 패턴 적용

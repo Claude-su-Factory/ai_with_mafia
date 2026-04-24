@@ -151,11 +151,12 @@ func (h *Hub) doRemove(roomID, playerID string) {
 	}
 
 	if room == nil {
-		// All humans left — stop game and broadcast game over.
+		// All humans left — stop game and broadcast a full-shape aborted result
+		// so the frontend GameOverResult consumer sees winner/round/duration_sec/players.
 		h.gameManager.StopGame(roomID)
 		h.Broadcast(roomID, dto.GameEventDTO{
 			Type:    string(entity.EventGameOver),
-			Payload: map[string]any{"reason": "all_humans_left"},
+			Payload: buildAbortedGameOverPayload(),
 		}, false)
 		return
 	}
@@ -461,15 +462,12 @@ func (h *Hub) ServeWS(c *websocket.Conn, roomID, playerID string) {
 		})
 	}
 
-	roomPayload := map[string]any{
-		"id":         room.ID,
-		"name":       room.Name,
-		"status":     string(room.Status),
-		"host_id":    room.HostID,
-		"visibility": string(room.Visibility),
-		"join_code":  room.JoinCode,
-		"players":    playerList,
-	}
+	// Room shape is owned by buildInitialStateRoomPayload (aligned with HTTP
+	// dto.RoomResponse + frontend Room type). WS overrides players because the
+	// live game view needs AI participants included (they can be voted on / killed);
+	// the helper's default excludes AI for parity with the lobby-list HTTP path.
+	roomPayload := buildInitialStateRoomPayload(room)
+	roomPayload["players"] = playerList
 
 	var gamePayload any
 	if snapshot != nil {
