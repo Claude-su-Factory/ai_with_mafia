@@ -22,6 +22,8 @@ model_default      = "claude-haiku-4-5-20251001"
 model_reasoning    = "claude-sonnet-4-6"
 max_concurrent     = 3
 history_max        = 40
+max_tokens_chat     = 160  # AI 대화·토론 발화 길이 제한
+max_tokens_decision = 20   # AI 투표/킬/조사 응답 길이 제한 — ID 만 받으면 충분
 response_delay_min = 2
 response_delay_max = 6
 

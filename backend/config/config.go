@@ -40,6 +40,8 @@ type AIConfig struct {
 	ModelReasoning    string `toml:"model_reasoning"`
 	MaxConcurrent     int    `toml:"max_concurrent"`
 	HistoryMax        int    `toml:"history_max"`
+	MaxTokensChat     int    `toml:"max_tokens_chat"`     // default 160
+	MaxTokensDecision int    `toml:"max_tokens_decision"` // default 20
 	ResponseDelayMin  int    `toml:"response_delay_min"`
 	ResponseDelayMax  int    `toml:"response_delay_max"`
 }
@@ -68,5 +70,17 @@ func Load(path string) (*Config, error) {
 	if _, err := toml.DecodeFile(path, &cfg); err != nil {
 		return nil, err
 	}
+	applyDefaults(&cfg)
 	return &cfg, nil
+}
+
+// applyDefaults sets fallback values for optional config fields that are not
+// specified in the TOML file. Keeps Load idempotent for zero-value fields.
+func applyDefaults(cfg *Config) {
+	if cfg.AI.MaxTokensChat == 0 {
+		cfg.AI.MaxTokensChat = 160
+	}
+	if cfg.AI.MaxTokensDecision == 0 {
+		cfg.AI.MaxTokensDecision = 20
+	}
 }
