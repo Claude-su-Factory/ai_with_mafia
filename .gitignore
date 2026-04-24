@@ -1,0 +1,56 @@
+# -------- Secrets (MUST NEVER be committed) --------
+# Real config; only *.example variants are tracked
+backend/config.toml
+backend/config.local.toml
+
+# Frontend env — real keys (dev/prod/local). Only .env.example is tracked
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+frontend/.env.*.local
+
+# Doppler / secret managers
+.doppler/
+doppler.yaml.local
+
+# -------- Build artifacts --------
+backend/bin/
+backend/dist/
+backend/server
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# -------- Test / coverage --------
+*.test
+*.out
+coverage/
+.coverage
+
+# -------- Harness / agent workspace (runtime scratch) --------
+_workspace/
+_workspace_*/
+
+# -------- Editor / OS noise --------
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# -------- Archives / large binaries (keep repo lean) --------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# -------- Logs --------
+*.log
+logs/
+
+# -------- Env manager files --------
+.env
+.envrc

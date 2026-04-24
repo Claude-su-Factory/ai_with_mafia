@@ -1,0 +1,61 @@
+# 루트 .dockerignore — backend/frontend 어느 이미지에서든 공통적으로 제외
+# 서비스별 추가 규칙은 backend/.dockerignore, frontend/.dockerignore 로 확장한다.
+
+# Secrets (절대 이미지에 포함 금지)
+backend/config.toml
+backend/config.local.toml
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+frontend/.env.*.local
+.doppler/
+
+# Git / VCS
+.git/
+.gitignore
+.gitattributes
+
+# 하네스 / 도구 메타
+.claude/
+.superpowers/
+_workspace/
+_workspace_*/
+
+# 문서 / 계획 (런타임에 필요 없음)
+docs/
+*.md
+!README.md
+
+# 빌드 산출물 (이미지 내에서 새로 빌드)
+backend/bin/
+backend/server
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# 테스트 / 커버리지
+*.test
+*.out
+coverage/
+
+# 아카이브 / 큰 파일
+*.zip
+*.tar
+*.tar.gz
+
+# OS / 에디터
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# 로그
+*.log
+logs/
+
+# 도커 자체
+Dockerfile
+docker-compose.yml
+.dockerignore

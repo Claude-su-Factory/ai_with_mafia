@@ -1,0 +1,45 @@
+# 실제 config.toml 은 git 에 커밋하지 않는다 (루트 .gitignore 에 등록).
+# 운영 환경은 Doppler 등으로 이 파일 위치에 secret file 을 mount 한다.
+# 로컬 사용법: `cp backend/config.example.toml backend/config.toml` 후 값 채우기.
+
+[server]
+port = 8080
+reconnect_grace_sec = 30
+
+[database]
+# 예: postgres://user:password@host:5432/db?sslmode=disable
+dsn = "postgres://postgres:password@localhost:5432/ai_playground?sslmode=disable"
+
+[redis]
+addr     = "localhost:6379"
+password = ""
+db       = 0
+
+[ai]
+# Anthropic API 키. 운영에서는 Doppler secret 으로 주입
+api_key            = "REPLACE_WITH_ANTHROPIC_API_KEY"
+model_default      = "claude-haiku-4-5-20251001"
+model_reasoning    = "claude-sonnet-4-6"
+max_concurrent     = 3
+history_max        = 40
+response_delay_min = 2
+response_delay_max = 6
+
+[game.mafia.timers]
+day_discussion = 300
+day_vote       = 120
+night          = 60
+
+# AI 플레이어 페르소나. 필요에 따라 추가/수정 가능
+[[personas]]
+name        = "예시 페르소나 A"
+personality = "논리적이고 말이 많다. 항상 근거를 들어 주장한다."
+
+[[personas]]
+name        = "예시 페르소나 B"
+personality = "조용하지만 날카롭다. 말수는 적지만 핵심을 찌른다."
+
+[supabase]
+# Supabase JWT ES256 검증용 공개키(x, y). Supabase 프로젝트 > API > JWT Keys 의 JWK 에서 확인
+jwt_public_key_x = "REPLACE_WITH_JWK_X_COORD"
+jwt_public_key_y = "REPLACE_WITH_JWK_Y_COORD"
