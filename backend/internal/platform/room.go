@@ -100,6 +100,65 @@ func (s *RoomService) Join(roomID, playerID, playerName string) (*entity.Room, e
 	return room, nil
 }
 
+// FindOrCreatePublicRoom picks the public waiting room with the most humans
+// (favoring rooms about to start), or creates a new 6-person public room if
+// none have room. Tie-break on HumanCount: smallest room.ID (lexicographic).
+//
+// The write lock is held across candidate selection AND join so no other
+// goroutine can overfill the chosen room between the HumanCount check and
+// AddPlayer. addPlayerLocked is a lock-free helper to avoid re-entry.
+func (s *RoomService) FindOrCreatePublicRoom(playerID, displayName string) (*entity.Room, bool, error) {
+	s.mu.Lock()
+
+	var best *entity.Room
+	for _, r := range s.rooms {
+		if r.Visibility != entity.VisibilityPublic {
+			continue
+		}
+		if r.GetStatus() != entity.RoomStatusWaiting {
+			continue
+		}
+		if r.HumanCount() >= r.MaxHumans {
+			continue
+		}
+		if best == nil ||
+			r.HumanCount() > best.HumanCount() ||
+			(r.HumanCount() == best.HumanCount() && r.ID < best.ID) {
+			best = r
+		}
+	}
+
+	if best != nil {
+		// Join under the held lock using an un-locked internal helper.
+		s.addPlayerLocked(best, playerID, displayName)
+		s.mu.Unlock()
+		return best, false, nil
+	}
+	s.mu.Unlock()
+
+	// No candidate: create a fresh public room and let the host be the caller.
+	room, err := s.Create(dto.CreateRoomRequest{
+		Name: "빠른 게임", MaxHumans: 6, Visibility: "public",
+	}, playerID, displayName)
+	if err != nil {
+		return nil, false, err
+	}
+	return room, true, nil
+}
+
+// addPlayerLocked must be called with s.mu already held for write.
+// It is a lock-free helper so FindOrCreatePublicRoom can atomically scan
+// candidates + join without dropping the lock between them.
+func (s *RoomService) addPlayerLocked(room *entity.Room, playerID, displayName string) {
+	room.AddPlayer(entity.NewPlayer(playerID, displayName, false))
+	if s.db != nil {
+		if err := s.roomRepo.Save(context.Background(), room); err != nil {
+			s.logger.Error("failed to persist room join to db",
+				zap.String("room_id", room.ID), zap.Error(err))
+		}
+	}
+}
+
 func (s *RoomService) JoinByCode(code, playerID, playerName string) (*entity.Room, error) {
 	s.mu.RLock()
 	var roomID string

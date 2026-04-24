@@ -321,3 +321,81 @@ func TestToRoomResponse_PublicRoom_NoJoinCode(t *testing.T) {
 		t.Errorf("public room response should not include join_code, got %q", resp.JoinCode)
 	}
 }
+
+// ─── FindOrCreatePublicRoom (Quick Match helper, Phase A §3-C) ──────────────
+
+func TestFindOrCreatePublicRoom_NoRoom_Creates(t *testing.T) {
+	svc := testRoomService(t)
+	room, created, err := svc.FindOrCreatePublicRoom("player-a", "알파")
+	if err != nil {
+		t.Fatalf("FindOrCreatePublicRoom: %v", err)
+	}
+	if !created {
+		t.Error("created = false, want true (no existing rooms)")
+	}
+	if room.Visibility != entity.VisibilityPublic {
+		t.Errorf("visibility = %v, want public", room.Visibility)
+	}
+}
+
+func TestFindOrCreatePublicRoom_RoomFull_Creates(t *testing.T) {
+	svc := testRoomService(t)
+	// Fill one public room completely
+	full := createTestRoom(t, svc, "가득찬방", "host-1", "호스트", 2)
+	svc.Join(full.ID, "player-x", "X") // now HumanCount=2 == MaxHumans
+
+	_, created, err := svc.FindOrCreatePublicRoom("player-a", "알파")
+	if err != nil {
+		t.Fatalf("FindOrCreatePublicRoom: %v", err)
+	}
+	if !created {
+		t.Error("created = false, want true (only full room available)")
+	}
+}
+
+func TestFindOrCreatePublicRoom_RoomAvailable_Joins(t *testing.T) {
+	svc := testRoomService(t)
+	target := createTestRoom(t, svc, "들어갈방", "host-1", "호스트", 4)
+
+	room, created, err := svc.FindOrCreatePublicRoom("player-a", "알파")
+	if err != nil {
+		t.Fatalf("FindOrCreatePublicRoom: %v", err)
+	}
+	if created {
+		t.Error("created = true, want false (available room exists)")
+	}
+	if room.ID != target.ID {
+		t.Errorf("room.ID = %s, want %s", room.ID, target.ID)
+	}
+	if !roomContainsPlayer(room, "player-a") {
+		t.Error("player-a was not added to the target room")
+	}
+}
+
+func TestFindOrCreatePublicRoom_OnlyPrivate_Creates(t *testing.T) {
+	svc := testRoomService(t)
+	_, err := svc.Create(dto.CreateRoomRequest{
+		Name: "비밀", MaxHumans: 4, Visibility: "private",
+	}, "host-1", "호스트")
+	if err != nil {
+		t.Fatalf("Create private: %v", err)
+	}
+
+	_, created, err := svc.FindOrCreatePublicRoom("player-a", "알파")
+	if err != nil {
+		t.Fatalf("FindOrCreatePublicRoom: %v", err)
+	}
+	if !created {
+		t.Error("created = false, want true (private rooms must be ignored)")
+	}
+}
+
+// roomContainsPlayer is a small helper used by FindOrCreatePublicRoom tests.
+func roomContainsPlayer(room *entity.Room, playerID string) bool {
+	for _, p := range room.GetPlayers() {
+		if p.ID == playerID {
+			return true
+		}
+	}
+	return false
+}
