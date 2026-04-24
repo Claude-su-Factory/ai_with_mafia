@@ -13,8 +13,9 @@ description: "AI 마피아 게임 React/TypeScript 프론트엔드 전문가. UI
 - **프레임워크**: React 18 + TypeScript + Vite
 - **상태 관리**: Zustand (`src/store/gameStore.ts`)
 - **라우터**: React Router v6 (`src/App.tsx`)
-- **WS 프록시**: `vite.config.ts` → `/ws` → `ws://localhost:3000`, `changeOrigin: true`
-- **API 프록시**: `/api` → `http://localhost:3000`
+- **WS 프록시**: `vite.config.ts` → `/ws` → `ws://localhost:8080`, `changeOrigin: true`
+- **API 프록시**: `/api` → `http://localhost:8080`
+  - (이전에는 3000이었지만 `kubectl port-forward` 충돌로 8080으로 고정. ARCHITECTURE 4.1 참조)
 
 ## 핵심 파일 구조
 
