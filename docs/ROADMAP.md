@@ -1,7 +1,7 @@
 # ROADMAP.md
 
 다음 할 일을 **우선순위 tier**로 분류한다.
-**마지막 업데이트:** 2026-04-24
+**마지막 업데이트:** 2026-04-24 (Tier 1 secret 분리 기본선 완료)
 
 > **업데이트 규칙 (MANDATORY)**
 > - 완료된 항목은 이 파일에서 제거하고, STATUS.md 체크리스트에 ✅ 로 옮긴다
@@ -20,26 +20,28 @@
 
 ## 현재 추천 다음 작업
 
-1. **Tier 1 · Secret 분리** — `backend/config.toml` 을 untrack 하고 Anthropic / Supabase 키 rotation
-2. **Tier 1 · 미커밋 변경사항 커밋** — handler 인터페이스 추출 + 신규 테스트 9개 (2026-04-17 기준)
-3. **Tier 2 · Dockerfile + `.dockerignore` + 루트 `.gitignore` 정립**
-4. **Tier 2 · GitHub Actions CI** (go test, vite build)
+1. **Tier 1 · Anthropic / Supabase 키 rotation (사용자 수동 액션)** — 히스토리에 평문 노출된 기존 키 revoke 후 새 키 발급, `backend/config.toml` 로컬 업데이트
+2. **Tier 1 · git 히스토리 정리 (선택)** — `git filter-repo` 또는 BFG 로 과거 커밋의 secret 제거 후 force push 결정
+3. **Tier 2 · backend/frontend Dockerfile 작성** (multi-stage, scratch/distroless)
+4. **Tier 2 · GitHub Actions CI** (`go test ./...`, `vite build`, `tsc --noEmit`)
 
 ---
 
 ## Tier 1 · 차단성
 
 ### T1-1. Secret 관리 정립
-- [ ] `backend/config.toml` 을 git 에서 제거 (`git rm --cached`), 템플릿만 `config.example.toml` 로 보존
-- [ ] Anthropic API key · Supabase JWK rotation (현 키는 히스토리에 노출된 것으로 간주)
-- [ ] 루트 `.gitignore` 작성: `*.env`, `config.toml`, `dist/`, `node_modules/`, `_workspace*/`, `.DS_Store`
-- [ ] `.dockerignore` 도 함께 작성 (이미지에 secret·테스트 산출물이 섞이지 않도록)
-- [ ] 대체 주입: 로컬은 `config.toml.local` (ignored) · 운영은 Doppler secret file mount
+- [x] 루트 `.gitignore` 작성 (`abc86c2`)
+- [x] `.dockerignore` 작성 (`abc86c2`)
+- [x] `backend/config.toml` · `frontend/.env.development` · `.env.production` git 트래킹 해제
+- [x] `backend/config.example.toml` · `frontend/.env.example` 템플릿 제공
+- [ ] **Anthropic API key rotation** (사용자 수동 — 대시보드에서)
+- [ ] **Supabase anon key / JWT 키 rotation** (사용자 수동 — Supabase Settings > API)
+- [ ] 히스토리 정리 여부 결정 (`git filter-repo` / BFG, force push). private repo 이고 clone 수가 적다면 생략 가능하지만 권장
+- [ ] 운영 환경 secret 주입 경로 확정 (Doppler secret file mount, ARCHITECTURE 4.9)
 - **근거:** ARCHITECTURE 4.9 · 사용자 규칙 "키가 절대 노출 안 됨"
 
 ### T1-2. 미커밋 변경사항 정리
-- [ ] `handler.go` 인터페이스 추출 + 테스트 9개 (2026-04-17 기준) 커밋
-- [ ] 커밋 메시지에 설계 변경 의도 기록 (concrete → interface, 테스트 주입)
+- [x] `handler.go` 인터페이스 추출 + 테스트 9개 커밋 (`231e57f`)
 
 ### T1-3. WaitingRoom 최소 인원 룰 재확인
 - [ ] 현재 `canStart = players.length >= 1` (1인 시작 가능). 의도된 디버그 조건인지 검토, 프로덕션은 6인 전체 또는 최소 2 사람 요구가 자연스러움

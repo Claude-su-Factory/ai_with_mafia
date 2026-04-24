@@ -1,7 +1,7 @@
 # STATUS.md
 
 현재 어디까지 구현됐는가를 한 눈에 본다.
-**마지막 업데이트:** 2026-04-24
+**마지막 업데이트:** 2026-04-24 (secret 분리 완료)
 
 > **업데이트 규칙 (MANDATORY)**
 > 기능 구현을 완료하면 이 파일을 반드시 갱신한다. 업데이트 없이는 완료로 간주하지 않는다.
@@ -42,9 +42,11 @@
 
 ### Phase 4 — 운영 배포
 - ✅ 로컬 `docker-compose.yml` (postgres + redis)
+- ✅ 루트 `.gitignore` (secret · 빌드 · OS noise · *.zip 차단)
+- ✅ 루트 `.dockerignore` (이미지 컨텍스트 최소화)
+- ✅ `backend/config.example.toml` · `frontend/.env.example` 템플릿
+- ✅ `backend/config.toml` · `frontend/.env.development` · `.env.production` git 트래킹 해제
 - ❌ `Dockerfile` (backend · frontend)
-- ❌ `.dockerignore`
-- ❌ 루트 `.gitignore`
 - ❌ Kubernetes 매니페스트 (로컬·운영 공용)
 - ❌ Doppler secret 주입 설정
 - ❌ Railway 프로젝트 연결
@@ -83,7 +85,9 @@
 
 ## 최근 변경 이력 (최신순)
 
-- **2026-04-24** · 하네스 엔지니어링: `docs/STATUS.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md` 신설, CLAUDE.md에 문서/배포/스킬 라우팅 규칙 추가
+- **2026-04-24** · `abc86c2` secret 분리: `.gitignore`/`.dockerignore` 작성, `config.toml`·`.env.development`·`.env.production` 트래킹 해제, `config.example.toml`·`.env.example` 추가
+- **2026-04-24** · `231e57f` Handler에 UserStore/GameResultStore 인터페이스 추출 + 테스트 9개 (2026-04-17 기준 미커밋 작업 정리)
+- **2026-04-24** · `139d97b` 하네스 엔지니어링: `docs/STATUS.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md` 신설, CLAUDE.md에 문서/배포/스킬 라우팅 규칙 추가
 - **2026-04-22** · `0909d3f` Vite proxy target 8080 정렬
 - **2026-04-22** · `3ffc55c` backend port 3000 → 8080
 - **2026-04-23** · `73b69de` JWT HS256 → ES256 (Supabase JWK)
@@ -104,19 +108,21 @@
 
 ### 🔴 치명적 (즉시 조치 필요)
 
-1. **`backend/config.toml`에 API 키가 평문으로 git 트래킹됨**
-   - Anthropic API key, Supabase JWK가 커밋 히스토리에 노출
-   - 루트 `.gitignore` 부재 → 새 secret 파일도 자동 커밋 위험
-   - **조치:** 키 rotation → secret 파일 분리 → `.gitignore` 작성 → 히스토리에서 제거(`git filter-repo`) 고려
-   - **ROADMAP Tier 1** 에 대응 항목
+1. **과거 커밋 히스토리에 Anthropic API key · Supabase anon key 가 노출된 상태**
+   - 현재 시점 트래킹은 해제 완료 (`abc86c2`)
+   - 그러나 `git log` 에 이미 평문으로 남아있음 → **키 rotation 필수**
+   - **사용자 액션:**
+     (a) Anthropic 대시보드에서 기존 키 revoke + 새 키 발급 → `backend/config.toml` 로컬 갱신
+     (b) Supabase 프로젝트에서 anon key/JWT 키 rotation (Settings > API > Rotate)
+     (c) 필요 시 `git filter-repo` 또는 BFG 로 히스토리 정리 후 force push
+   - **ROADMAP Tier 1** 참조
 
 ### 🟡 중요 (작업 중·다음 릴리즈)
 
-2. **미커밋 변경사항(2026-04-17 기준)** — `handler.go` 인터페이스 추출 + 신규 테스트 9개. 커밋 필요
-3. **`GameResultStore` 타입 결합도** — handler가 `repository.PlayerStats` / `repository.PlayerGameRecord` 를 여전히 참조. `domain/dto` 로 이동 시 완전 분리
-4. **Frontend 테스트 0건** — 회귀 방어선 부재
-5. **DB 통합 테스트 부재** — `internal/repository` migration + 쿼리 계약 검증 없음
-6. **AI 매니저 테스트 부재** — `internal/ai` PersonaPool·Manager 동작 미검증
+2. **`GameResultStore` 타입 결합도** — handler가 `repository.PlayerStats` / `repository.PlayerGameRecord` 를 여전히 참조. `domain/dto` 로 이동 시 완전 분리
+3. **Frontend 테스트 0건** — 회귀 방어선 부재
+4. **DB 통합 테스트 부재** — `internal/repository` migration + 쿼리 계약 검증 없음
+5. **AI 매니저 테스트 부재** — `internal/ai` PersonaPool·Manager 동작 미검증
 
 ### 🟢 개선 여지
 
