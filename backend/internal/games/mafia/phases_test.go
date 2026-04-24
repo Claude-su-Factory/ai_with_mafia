@@ -411,3 +411,47 @@ func TestRunNight_EmitsSinglePhaseChangeWithAlivePlayers(t *testing.T) {
 		t.Error("EventMafiaChannelOpen must be MafiaOnly")
 	}
 }
+
+// TestDayVote_AllAgentsFail_GameProgresses is the Phase-A spec §5.1 guarantee:
+// even if every AI fails to submit a valid vote (e.g. because max_tokens
+// truncated the response OR the API errored out OR the agent returned an
+// invalid ID that failed containsID validation), the game moves on to the
+// next phase with no execution, and no error or panic propagates.
+//
+// This is a regression lock: the guarantee already holds in current code
+// (agent.go validates containsID, phases.go processVotes early-returns on
+// empty tally). The test ensures future refactors can't accidentally break it.
+func TestDayVote_AllAgentsFail_GameProgresses(t *testing.T) {
+	players := newTestPlayers()
+	// Intentionally omit any votes — simulates every AI failing validation.
+	pm, eventCh := newTestPM(players)
+
+	initialPhase := pm.state.Phase
+
+	// Must not panic.
+	pm.processVotes()
+
+	// Phase should remain a non-empty, valid value (processVotes itself does not
+	// advance phase; it must also not corrupt it).
+	if pm.state.Phase == "" {
+		t.Error("phase became empty after all-failed votes; expected no change")
+	}
+	if pm.state.Phase != initialPhase {
+		t.Errorf("processVotes should not mutate phase on empty tally; got %q, want %q",
+			pm.state.Phase, initialPhase)
+	}
+
+	// No player should have died — empty tally means no execution.
+	for _, p := range players {
+		if !p.IsAlive {
+			t.Errorf("no one should die when every AI fails to vote, but %s is dead", p.ID)
+		}
+	}
+
+	// Explicit assertion: no kill event should have been emitted (empty tally → skip).
+	for _, e := range drainEvents(eventCh) {
+		if e.Type == entity.EventKill {
+			t.Errorf("unexpected EventKill emitted on all-failed votes: payload=%v", e.Payload)
+		}
+	}
+}
