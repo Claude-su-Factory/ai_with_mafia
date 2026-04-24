@@ -275,6 +275,16 @@ func containsID(ids []string, target string) bool {
 	return false
 }
 
+// maxTokensFor returns the token limit appropriate for the given use-case.
+// "chat" = free-form discussion; "decision" = short ID-only response
+// (vote/kill/investigate). See phase-A design §3-A.
+func (a *Agent) maxTokensFor(kind string) int {
+	if kind == "decision" {
+		return a.cfg.MaxTokensDecision
+	}
+	return a.cfg.MaxTokensChat
+}
+
 func (a *Agent) callLLM(ctx context.Context, model, extraInstruction string) string {
 	messages := make([]anthropic.MessageParam, len(a.history))
 	copy(messages, a.history)
