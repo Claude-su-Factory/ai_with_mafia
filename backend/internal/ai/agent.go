@@ -316,10 +316,21 @@ func (a *Agent) callLLM(ctx context.Context, model, kind, extraInstruction strin
 		systemText += "\n\n" + extraInstruction
 	}
 
+	// Spec §3-A Prompt Caching: attach cache_control to the system+persona
+	// block so Anthropic caches it across turns in a game. Ephemeral is the
+	// shortest cache tier (5m default), auto-evicted — no TTL knob needed.
+	// Cache hit/creation token counts flow through Usage -> recordUsage hook.
+	systemBlocks := []anthropic.TextBlockParam{
+		{
+			Text:         systemText,
+			CacheControl: anthropic.NewCacheControlEphemeralParam(),
+		},
+	}
+
 	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
 		MaxTokens: int64(a.maxTokensFor(kind)),
-		System:    []anthropic.TextBlockParam{{Text: systemText}},
+		System:    systemBlocks,
 		Messages:  messages,
 	})
 	if err != nil {
