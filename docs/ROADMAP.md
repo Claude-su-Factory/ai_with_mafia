@@ -84,6 +84,12 @@
 - [ ] `internal/ai` 유닛 테스트 (Anthropic client mock)
 - [ ] Frontend: Vitest + React Testing Library 도입 · LandingPage/LobbyPage 스모크부터
 
+### T2-5b. 경계면 drift 정리 (2026-04-24 QA 발견)
+- [ ] **D1 (Critical)** `game_over` 의 `all_humans_left` path(hub.go:156)가 `{reason}` 만 전송 → 프론트 `GameOverResult` 필드 전부 undefined. 같은 shape 으로 채우거나 별도 이벤트 타입(`game_aborted`)로 분리
+- [ ] **D2** `max_humans` 프론트 Room 타입에 없음 + initial_state.room 에도 누락. types.ts / hub.go 양쪽 보강
+- [ ] **D3** HTTP `RoomResponse.join_code` omitempty vs 프론트 Room `join_code: string` 필수. 프론트를 optional로 낮추거나 백엔드 omitempty 제거
+- 근거: `_workspace/qa_report.md`
+
 ### T2-6. Fiber 성능 패턴 적용
 - [ ] 반복 할당 구조체 `sync.Pool` 도입 (WS 브로드캐스트 payload, DTO 빌더)
 - [ ] Context 전파 정리 (`c.Context()` 일관 사용, 핸들러 밖 고루틴 cancel 연결)
