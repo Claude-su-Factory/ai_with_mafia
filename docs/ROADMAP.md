@@ -1,7 +1,7 @@
 # ROADMAP.md
 
 다음 할 일을 **우선순위 tier**로 분류한다.
-**마지막 업데이트:** 2026-04-24 (Tier 1 secret 분리 기본선 완료)
+**마지막 업데이트:** 2026-04-24 (Phase A 구현 완료 · 검증 대기)
 
 > **업데이트 규칙 (MANDATORY)**
 > - 완료된 항목은 이 파일에서 제거하고, STATUS.md 체크리스트에 ✅ 로 옮긴다
@@ -20,16 +20,18 @@
 
 ## 현재 추천 다음 작업
 
-> 프로젝트는 아직 GitHub 등 원격에 푸시된 적이 없다. 외부 노출 리스크는 0이므로,
-> 키 rotation 보다 "푸시 전에 로컬 히스토리만 깨끗이 정리" 가 자연스럽다.
+> Phase A (Unit Economics Foundation) 가 방금 구현 완료. 다음은 실측 데이터 수집 + Phase B 브레인스토밍.
 
-1. **Tier 1 · 원격 푸시 전략 결정** — 아래 중 하나로 확정
-   - A. `git filter-repo` 로 과거 커밋의 `backend/config.toml`, `frontend/.env.development`, `frontend/.env.production` 경로 제거 후 remote 생성
-   - B. 기존 히스토리를 버리고 `git init` 으로 새 저장소 시작
-   - C. 원격 없이 당분간 로컬 개발만 지속 (푸시 예정 시점에 다시 판단)
-2. **Tier 2 · backend/frontend Dockerfile 작성** (multi-stage, scratch/distroless)
-3. **Tier 2 · GitHub Actions CI** (`go test ./...`, `vite build`, `tsc --noEmit`)
-4. **Tier 2 · Railway 프로젝트 설정 + Doppler 연결**
+1. **Phase A 검증 runbook 실행** — `_workspace/phase-a-verification.md` 6개 정량 기준 로컬 실측
+   - Prompt cache hit rate ≥ 70%
+   - Ad impressions 3 슬롯 모두 관측
+   - Quick match p95 ≤ 3s, 성공률 ≥ 95%
+   - 2-Pod rate limiter 429 검증
+2. **Tier 2 · Phase A follow-up: `game_id` vs `room_id` 분리** — 현재 AI usage 가 `room_id` 를 `game_id` 자리에 기록 중. 게임 생명주기 훅에 `GameMetricsRepository.Create` 연결 (ROADMAP T2-0b)
+3. **Phase B 브레인스토밍** — 검증 데이터를 바탕으로 B/C/D 중 다음 대상 확정. 후보: 보상형 광고 + 초대 링크, 또는 새 역할 (Phase C)
+4. **Tier 1 · 원격 푸시 전략 결정** (보류 가능 — 외부 노출 0)
+5. **Tier 2 · backend/frontend Dockerfile 작성** (multi-stage, scratch/distroless)
+6. **Tier 2 · GitHub Actions CI** (`go test ./...`, `vite build`, `tsc --noEmit`)
 
 ---
 
@@ -83,6 +85,24 @@
 - [ ] `internal/repository` 통합 테스트 (testcontainers 또는 pg_tmp)
 - [ ] `internal/ai` 유닛 테스트 (Anthropic client mock)
 - [ ] Frontend: Vitest + React Testing Library 도입 · LandingPage/LobbyPage 스모크부터
+
+### T2-0. Phase A — Unit Economics Foundation (2026-04-24 구현 완료)
+- [x] D. Metrics schema + Repository (`abef790`, `0e83386`, `315e1ec`, `4679a0e`)
+- [x] A. AI Cost Optimizer: max_tokens split, prompt cache, stop_reason hook (`2e98956`, `4d3f980`, `f9efbfe`, `cb80c26`, `e8ceda8`, `6aa9ee4`)
+- [x] C. Quick Match (축소판): `/api/rooms/quick` + 프론트 버튼 (`c5a3a1d`, `dc9baf8`)
+- [x] B. Ad Integration: `/api/metrics/ad` + Redis-backed limiter + 3-surface AdBanner (`4a24106`, `d4b9874`, `1babfd8`, `2ed76c1`)
+- [x] Integration wiring: `1896bcb`
+- [ ] **로컬 검증 runbook 실행** — 6개 정량 기준 pass 확인
+- Next Phases (별도 브레인스토밍):
+  - Phase B — 보상형 광고 + 초대 링크 (Phase A cache hit 및 impression 데이터 필요)
+  - Phase C — 새 역할 or 방 사이즈 가변 (후 `ai_count` 분포 보고 결정)
+  - Phase D — 랭킹 + 시즌 (C 확정 후)
+
+### T2-0b. Phase A follow-up: `game_id` vs `room_id` 분리
+- [ ] 현재 `GameMetricsRepository.AddAIUsage` 가 `game_id = room_id` 로 기록 중 (T12 known concern)
+- [ ] `GameMetricsRepository.Create` / `Finalize` 를 실제 게임 생명주기에 훅 — 매 게임마다 고유 `game_id` (UUID) 발급 후 metric row 생성
+- [ ] 영향: 방 1개에서 연속 게임 플레이 시 토큰 카운터가 누적되는 현상 해소 → cohort 분석 정확도 향상
+- 우선순위: Phase A 검증 결과 확인 후 필요성 판단
 
 ### T2-5b. 경계면 drift 정리 (2026-04-24 QA 발견 → 당일 해결)
 - [x] **D1 (Critical)** `game_over` all_humans_left path — `buildAbortedGameOverPayload()` 헬퍼로 full-shape `{winner: "aborted", round, duration_sec, players: [], reason}` 전송 (TDD RED→GREEN). 프론트 `GameOverResult.winner` 에 `'aborted'` 추가, ResultOverlay 에 "게임 중단" 분기 추가

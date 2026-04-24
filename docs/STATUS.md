@@ -1,7 +1,7 @@
 # STATUS.md
 
 현재 어디까지 구현됐는가를 한 눈에 본다.
-**마지막 업데이트:** 2026-04-24 (secret 분리 완료)
+**마지막 업데이트:** 2026-04-24 (Phase A 구현 완료, 검증 대기)
 
 > **업데이트 규칙 (MANDATORY)**
 > 기능 구현을 완료하면 이 파일을 반드시 갱신한다. 업데이트 없이는 완료로 간주하지 않는다.
@@ -55,9 +55,19 @@
 
 ### Phase 5 — 성장·SEO·수익화
 - ❌ SEO 메타·sitemap
-- ❌ 광고 (계획만 존재: `docs/superpowers/plans/2026-04-09-ad-revenue.md`)
 - ❌ 리얼타임 presence 표시 (계획만 존재)
 - ❌ UX 애니메이션 (계획만 존재)
+
+### Phase A — Unit Economics Foundation (2026-04-24 구현 완료, 검증 대기)
+스펙: `docs/superpowers/specs/2026-04-24-phase-a-unit-economics-foundation-design.md` · 플랜: `docs/superpowers/plans/2026-04-24-phase-a-unit-economics-foundation.md`
+- ✅ `game_metrics` 테이블 + migration 000007
+- ✅ `GameMetricsRepository` (Create / Finalize / AddAIUsage / IncrementAdImpression / RecordQuickMatch) + nil-pool 안전
+- ✅ AI Cost Optimizer: max_tokens chat(160)/decision(20) 분리, Anthropic prompt cache, stop_reason 관측 훅
+- ✅ Quick Match: `POST /api/rooms/quick` join-or-create + latency metric + 프론트 `빠른 참가` 버튼
+- ✅ Ad Integration: `POST /api/metrics/ad` + Redis-backed rate limiter (30 req/min/IP) + `AdBanner` IntersectionObserver + Lobby/Waiting/Result 3-surface 배치
+- ✅ Fail-safe regression lock: 모든 AI 기권해도 게임이 다음 phase 로 진행 (`phases_test.go`)
+- 🟠 **검증 대기**: `_workspace/phase-a-verification.md` 의 6개 정량 기준을 로컬에서 실측 후 pass 확인 필요
+- 🟠 **알려진 제약**: AI 사용량은 현재 `game_id = room_id` 로 기록됨. 같은 방이 연속 게임을 하면 토큰 카운터가 누적 (ROADMAP T2-5b 후속)
 
 ---
 
@@ -66,7 +76,7 @@
 | 항목 | 상태 | 비고 |
 |------|------|------|
 | Backend 빌드 | ✅ `go build ./...` OK | |
-| Backend 테스트 | ✅ `go test ./...` 전부 통과 | 73 tests |
+| Backend 테스트 | ✅ `go test ./...` 전부 통과 | ~95+ tests (Phase A 후) |
 | Frontend 빌드 | ✅ Vite 빌드 OK | `dist/` 생성 확인 |
 | Frontend 테스트 | ❌ 테스트 파일 0 | |
 | Postgres · Redis | ✅ docker-compose 실행 가능 | `docker compose up` |
@@ -85,6 +95,7 @@
 
 ## 최근 변경 이력 (최신순)
 
+- **2026-04-24** · **Phase A — Unit Economics Foundation 구현 완료** (20 TDD tasks, commits `0e83386`~`2ed76c1`): game_metrics 스키마/Repo, AI prompt cache + max_tokens split + stop_reason 훅, Quick Match join-or-create, Redis-backed ad rate limiter, 3-surface AdBanner. 6개 정량 기준 검증은 로컬 runbook (`_workspace/phase-a-verification.md`) 로 대기
 - **2026-04-24** · 경계면 drift D1~D3 TDD 해결: `buildAbortedGameOverPayload` + `buildInitialStateRoomPayload` 헬퍼 추출(+ 유닛 테스트 10건), hub.go가 이를 사용, 프론트 GameOverResult/Room 타입 동기화, ResultOverlay aborted 분기 추가
 - **2026-04-24** · 코드 리뷰 피드백 반영: `respondPlayerErr` DB 에러 → 500 분류 수정, `resolvePlayerFull` 500 경로 테스트 추가 (+3 tests), `backend/server` 바이너리 untrack, `.dockerignore` markdown negate 단순화, `.gitignore` 중복 제거, CLAUDE.md 현재 상태 갱신
 - **2026-04-24** · `3c0db5f` docs: 원격 없음 반영 — secret을 "치명적"에서 "푸시 전 필수"로 재분류
