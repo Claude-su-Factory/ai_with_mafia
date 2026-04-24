@@ -102,6 +102,25 @@ export function joinByCode(params: JoinByCodeParams) {
   })
 }
 
+export interface QuickMatchResponse {
+  room_id: string
+  player_id: string
+  created: boolean
+}
+
+export function quickMatch() {
+  return request<QuickMatchResponse>('/rooms/quick', { method: 'POST' })
+}
+
+export function logAdImpression(slot: 'lobby' | 'waiting' | 'result', gameID?: string) {
+  return request<void>('/metrics/ad', {
+    method: 'POST',
+    body: JSON.stringify({ slot, game_id: gameID }),
+  }).catch(() => {
+    // fail-open: do not disturb the user experience on metric failure
+  })
+}
+
 export function startGame(roomID: string) {
   return request<void>(`/rooms/${roomID}/start`, { method: 'POST' })
 }

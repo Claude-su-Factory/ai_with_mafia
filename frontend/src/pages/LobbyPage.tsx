@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listRooms, joinRoom, createRoom, joinByCode } from '../api'
+import { listRooms, joinRoom, createRoom, joinByCode, quickMatch } from '../api'
 import type { Room } from '../types'
 import { prepare, layout } from '@chenglou/pretext'
 import { useAuthStore } from '../store/authStore'
@@ -69,6 +69,7 @@ function injectCSS() {
     .lobby-btn-refresh:hover { color: ${T.text} !important; border-color: ${T.surfaceBorder} !important; }
     .lobby-btn-join:hover { background: rgba(196,150,58,0.2) !important; }
     .lobby-btn-create:hover { background: rgba(196,150,58,0.2) !important; }
+    .lobby-btn-quick:hover { background: rgba(196,150,58,0.2) !important; }
     .lobby-btn-code:hover { border-color: ${T.textMuted} !important; color: ${T.text} !important; }
     .modal-cancel:hover { border-color: ${T.textMuted} !important; color: ${T.text} !important; }
     .modal-join:hover { background: rgba(196,150,58,0.2) !important; }
@@ -187,6 +188,16 @@ export default function LobbyPage() {
     }
   }
 
+  async function handleQuickMatch() {
+    try {
+      const res = await quickMatch()
+      navigate(`/rooms/${res.room_id}`)
+    } catch (e) {
+      console.error('빠른 참가 실패:', e)
+      setCreateError(e instanceof Error ? e.message : '빠른 참가에 실패했습니다.')
+    }
+  }
+
   async function handleJoinByCode() {
     if (!codeInput.trim()) return
     setCodeError('')
@@ -260,6 +271,26 @@ export default function LobbyPage() {
 
         {/* ── Left sidebar ─────────────────────────────────────────────── */}
         <aside style={{ width: '320px', flexShrink: 0 }}>
+
+          {/* ── Quick match ──────────────────────────────────────────── */}
+          <section style={{ marginBottom: '28px' }}>
+            <span style={labelSt}>빠른 참가</span>
+            <button
+              className="lobby-btn-quick"
+              onClick={handleQuickMatch}
+              style={{
+                width: '100%', padding: '11px 0', cursor: 'pointer',
+                borderRadius: '2px', transition: 'all 150ms ease',
+                background: T.accentDim, color: T.accent,
+                border: `1px solid ${T.accent}50`,
+                fontFamily: SANS, fontSize: '13px', fontWeight: 600,
+              }}
+            >
+              빠른 참가
+            </button>
+          </section>
+
+          <div style={{ height: '1px', background: T.surfaceBorder, margin: '0 0 28px' }} />
 
           {/* ── Create room ──────────────────────────────────────────── */}
           <section>
