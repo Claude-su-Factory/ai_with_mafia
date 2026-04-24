@@ -126,7 +126,7 @@ type AIUsageEvent struct {
   - 세션당 같은 slot 은 쿨다운 30초 (중복 호출 방지)
 - **Backend 엔드포인트**
   - `POST /api/metrics/ad` — 인증 불필요 (공개 trigger)
-  - Rate limit: IP당 30 req/min. `github.com/gofiber/fiber/v2/middleware/limiter` 를 이 엔드포인트 그룹에만 적용
+  - Rate limit: IP당 30 req/min. `github.com/gofiber/fiber/v2/middleware/limiter` 를 이 엔드포인트 그룹에만 적용. **Storage 에 Redis 주입** (`Storage: redislimiter.New(...)` 또는 자체 어댑터) — 멀티 Pod 환경에서 IP 허용량이 Pod 수만큼 증폭되지 않도록 함. 이미 `go-redis` 클라이언트가 DI 로 주입되어 있으므로 추가 인프라 비용 없음
   - `GameMetricsRepository.IncrementAdImpression(ctx, gameID, slot)` 호출. `gameID` 없으면 (lobby) `room_id = NULL` 인 row 를 slot 별로 별도 집계 (세부는 3-D 참조)
 
 #### 4축 영향
@@ -315,6 +315,66 @@ type AIUsage struct {
 
 ---
 
+## 4a. Concurrency & Distribution Analysis
+
+**Mandatory section per CLAUDE.md "동시성·분산 안전성" rule.** 각 컴포넌트의 상태가 멀티 Pod 환경에서 어떻게 동작하는지, 단일 Pod 전제라면 왜 허용되는지, 이관 경로가 무엇인지를 명시한다.
+
+### 컴포넌트별 상태 분포
+
+| 컴포넌트 | 상태 위치 | 현재(단일 Pod) 정확성 | 멀티 Pod 확장 시 거동 | 허용 여부 / 이관 |
+|---------|---------|:------:|---------|--------|
+| A. AI 발화 쿨다운 (`lastSpokeAt map`) | 프로세스 로컬 | ✅ | 같은 게임은 **LeaderLock** 으로 단일 Pod 가 관리 → 해당 Pod 에만 쿨다운 유지하면 충분 | ✅ 허용 (리더 failover 시 쿨다운 리셋 — AI가 약간 빨리 말할 수 있음, non-critical) |
+| A. Anthropic prompt cache | Anthropic 서버 측 | ✅ | 분산 무관 (서버 측 캐시는 API 키/프로젝트 단위) | ✅ 분산 안전 |
+| B. Ad impression 쿨다운 (세션당 30초) | **클라이언트 로컬** | ✅ | 분산 무관 (브라우저 메모리) | ✅ 분산 안전 |
+| B. Rate limiter (`/api/metrics/ad`) | **Redis 기반**으로 구현 | ✅ | Redis 단일 진실. Pod 수에 관계없이 IP 당 30 req/min | ✅ 분산 안전 — **Phase A 에서 Redis storage 선택이 이 때문** |
+| B. Ad impression 카운터 | Postgres (`game_metrics.ad_impressions_*`) | ✅ | `ON CONFLICT DO UPDATE SET col = col + EXCLUDED.col` — row-level 락 + atomic | ✅ 분산 안전 |
+| C. `RoomService.rooms` 맵 | **프로세스 로컬** | ✅ | ⚠️ 각 Pod 가 자기 방만 조회. Quick Match 가 다른 Pod 의 빈자리 방을 못 찾음 → 밀도↓, 생성 증가 | ⚠️ 단일 Pod 전제. **ROADMAP T3-2 이관 대상** |
+| C. Quick Match 후보 선택 + Join 원자성 | 같은 Pod 내 `sync.RWMutex` | ✅ | 같은 Pod 내는 안전. **Pod 간 경쟁은 자연히 분리** (다른 Pod 의 방은 안 보이므로 race 대상 자체 없음) | ✅ 단일 Pod 기준 정확 |
+| D. `game_metrics` upsert | Postgres | ✅ | `ON CONFLICT DO UPDATE` atomic. 동시 upsert 안전 | ✅ 분산 안전 |
+| D. Game lifecycle hook (Create/Finalize) | 리더 Pod 1곳 | ✅ | LeaderLock 으로 단일 리더만 발행 | ✅ 분산 안전 |
+
+### 단일 Pod 전제 — RoomService 상세 분석
+
+**현재 단일 Pod 기준 정확성:**
+- 한 Pod 내에서 `FindOrCreatePublicRoom` 은 `sync.Mutex` 로 후보 선택 + Join 을 원자화 → **overfill 방지**
+- 모든 사용자가 같은 Pod 에 연결되므로 Quick Match 가 찾는 "빈자리 방" 은 실제로 모든 공개 방을 본다
+
+**멀티 Pod 전환 시 깨지는 것:**
+- Pod A 에 생성된 방이 Pod B 의 Quick Match 에 보이지 않음
+- 결과: **새 방 생성 비율 증가** → 인간 밀도 감소 → AI 비용 증가 (즉 Unit Economics ① / ④ 축에 직접 타격)
+- overfill 은 발생하지 않음 (각 Pod 의 방은 여전히 로컬에서 원자적 join)
+
+**이관 경로 (ROADMAP T3-2):**
+- Redis `sorted set` 으로 공개 방 인덱스 유지 (score = HumanCount, member = room_id)
+- `RoomService.Create / AddPlayer / RemovePlayer` 가 Redis 동기 업데이트
+- Quick Match 는 `ZRANGEBYSCORE public_rooms 0 5 WITHSCORES` 로 자리 있는 방 조회
+- **방 실제 상태 자체는 어느 Pod 가 보유해야 하는가?** — WS 연결이 붙은 Pod 가 보유 (현재 구조 유지) + 다른 Pod 가 "이 방에 Join 하려면 나한테 다시 연결해" 라고 redirect. sticky routing + Redis registry 조합
+
+**Phase A 에서 할 일:**
+- 실제 해결은 T3-2 로 연기
+- **관측:** `game_metrics` 에 `quick_match_creates` / `quick_match_joins` 비율 기록 → 멀티 Pod 전환 후 `create` 비율 상승이 보이면 이관 타이밍으로 판단
+
+### 새 컴포넌트에서 도입하는 Redis 사용
+
+Phase A 가 **Redis 를 새로 사용하는 유일한 지점**: Ad 엔드포인트 rate limiter.
+
+- 선택 이유: 멀티 Pod 에서 IP 당 허용량 보존이 UX(악의적 광고 조회 방지 + 수익 왜곡 방지)에 직접 영향
+- 구현 비용: 기존 `go-redis` 클라이언트를 limiter middleware storage 로 어댑터 작성 (~30 LOC)
+- 대안 검토:
+  - **in-memory limiter**: Pod N 개 → 실제 허용량 30N req/min. 프로덕션 Scale 시 무력화. ❌
+  - **DB 기반 counter**: 왕복 비용 큼, Redis 가 있는데 굳이. ❌
+
+### 위험 목록 (단일 Pod → 멀티 Pod 전환 시)
+
+| 위험 | 영향 | 완화 |
+|-----|------|------|
+| RoomService `rooms` 분할 | 인간 밀도 ↓, AI 비용 ↑ | T3-2 이관 (Redis sorted set) |
+| WS 클라이언트 연결 고정 | 사용자는 한 Pod 에 붙어 있음 → 그 Pod 재시작 시 재연결 | 기존 WS reconnect 로직 유지. 세션 재참가는 이미 Redis 기반으로 복구됨 |
+| LeaderLock 전환 | 게임 소유 Pod 이 바뀔 때 state 직렬화 필요 | 이미 Postgres checkpointing 있음 (game_states 테이블) |
+| AI 쿨다운 리셋 | 리더 Pod failover 시 같은 AI 가 빨리 다시 말할 수 있음 | 허용 (UX 영향 미미) |
+
+---
+
 ## 5. Error Handling
 
 | 장애 | 대응 |
@@ -348,6 +408,7 @@ type AIUsage struct {
 | 기준 | 목표 | 측정 방법 |
 |-----|------|----------|
 | Prompt cache hit rate (system + persona) | ≥ 70% | `cache_read_tokens / (cache_read_tokens + tokens_in)` 평균 |
+| Rate limiter Redis storage 동작 | 2 Pod 시뮬레이션에서 IP당 30 req/min 유지 | 통합 테스트 또는 수동 — 2개 프로세스 기동 후 동일 IP에서 총 60 req/min 시도 시 절반 거부 |
 | 광고 슬롯 3곳 impression 로그 관측 | 3곳 전부 ≥ 1 | `SELECT SUM(ad_impressions_*) FROM game_metrics` |
 | `빠른 참가` latency | ≤ 3s (95th percentile) | `quick_match_latency_ms` |
 | `빠른 참가` 성공률 | ≥ 95% | `created + joined` / 총 클릭 수 |
@@ -392,3 +453,4 @@ type AIUsage struct {
 |-----|-------|------|
 | 2026-04-24 | 초기 작성 | brainstorming 세션에서 owner-level 결정 반영 |
 | 2026-04-24 | self-review pass 1 | 수정 4건: (a) YAGNI 제거 — `system_cache_ttl_sec` 삭제, (b) AdBanner `gameID` 런타임 계약 명시, (c) rate limit 구현 방법 고정(`fiber/middleware/limiter`), (d) Quick Match tie-break 을 구현 가능한 형태(`room.ID` 사전식) 로 확정 + 발화 쿨다운 ambiguity 완화 |
+| 2026-04-24 | pass 2 — 동시성·분산 반영 | 신규 §4a "Concurrency & Distribution Analysis" 추가. 컴포넌트별 상태 위치·허용 여부·이관 경로 테이블화. Ad rate limiter 를 **Redis storage 기반**으로 고정(멀티 Pod 에서 IP 할당 증폭 방지). RoomService 분산 이관은 ROADMAP T3-2 로 명시 연기. Success Criteria 에 2-Pod 시뮬레이션 검증 추가 |
