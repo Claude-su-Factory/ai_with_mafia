@@ -30,6 +30,7 @@ coverage/
 # -------- Harness / agent workspace (runtime scratch) --------
 _workspace/
 _workspace_*/
+.superpowers/
 
 # -------- Editor / OS noise --------
 .DS_Store
