@@ -84,6 +84,7 @@ func (h *Handler) RegisterRoutes(app *fiber.App) {
 	api.Get("/me/stats", h.myStats)
 	api.Get("/me/games", h.myGames)
 	api.Post("/rooms", h.createRoom)
+	api.Post("/rooms/quick", h.quickMatch)
 	api.Post("/rooms/:id/join", h.joinRoom)
 	api.Post("/rooms/join/code", h.joinByCode)
 	api.Post("/rooms/:id/start", h.startGame)
@@ -306,6 +307,25 @@ func (h *Handler) joinRoom(c *fiber.Ctx) error {
 	return c.JSON(dto.JoinRoomResponse{
 		RoomResponse: ToRoomResponse(room),
 		PlayerID:     playerID,
+	})
+}
+
+func (h *Handler) quickMatch(c *fiber.Ctx) error {
+	playerID, displayName, err := h.resolvePlayerFull(c)
+	if err != nil {
+		return respondPlayerErr(c, err)
+	}
+
+	room, created, err := h.rooms.FindOrCreatePublicRoom(playerID, displayName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).
+			JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"room_id":   room.ID,
+		"player_id": playerID,
+		"created":   created,
 	})
 }
 

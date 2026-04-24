@@ -697,6 +697,132 @@ func TestCreateRoom_NilUserRepo_Returns500(t *testing.T) {
 	}
 }
 
+// ─── POST /api/rooms/quick (Phase A §3-C) ────────────────────────────────────
+
+func TestQuickMatch_NoPublicRoom_CreatesNew(t *testing.T) {
+	app, _, makeToken := setupAppWithAuth(t)
+	tok := makeToken("user-1")
+
+	req := httptest.NewRequest("POST", "/api/rooms/quick", nil)
+	req.Header.Set("Authorization", bearerHeader(tok))
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	var body struct {
+		RoomID   string `json:"room_id"`
+		PlayerID string `json:"player_id"`
+		Created  bool   `json:"created"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !body.Created {
+		t.Error("created = false, want true")
+	}
+	if body.RoomID == "" {
+		t.Error("room_id is empty")
+	}
+}
+
+func TestQuickMatch_PublicRoomFull_CreatesNew(t *testing.T) {
+	app, svc, makeToken := setupAppWithAuth(t)
+
+	// Fill one public room to capacity 2
+	full, _ := svc.Create(dto.CreateRoomRequest{
+		Name: "가득", MaxHumans: 2, Visibility: "public",
+	}, "host-1", "H1")
+	svc.Join(full.ID, "player-x", "X")
+
+	tok := makeToken("user-1")
+	req := httptest.NewRequest("POST", "/api/rooms/quick", nil)
+	req.Header.Set("Authorization", bearerHeader(tok))
+
+	resp, _ := app.Test(req)
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+
+	var body struct {
+		Created bool `json:"created"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if !body.Created {
+		t.Error("created = false, want true (existing room was full)")
+	}
+}
+
+func TestQuickMatch_PublicRoomAvailable_Joins(t *testing.T) {
+	app, svc, makeToken := setupAppWithAuth(t)
+
+	target, _ := svc.Create(dto.CreateRoomRequest{
+		Name: "합류대상", MaxHumans: 4, Visibility: "public",
+	}, "host-1", "H1")
+
+	tok := makeToken("user-1")
+	req := httptest.NewRequest("POST", "/api/rooms/quick", nil)
+	req.Header.Set("Authorization", bearerHeader(tok))
+
+	resp, _ := app.Test(req)
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+
+	var body struct {
+		RoomID  string `json:"room_id"`
+		Created bool   `json:"created"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body.Created {
+		t.Error("created = true, want false")
+	}
+	if body.RoomID != target.ID {
+		t.Errorf("room_id = %s, want %s", body.RoomID, target.ID)
+	}
+}
+
+func TestQuickMatch_IgnoresPrivateRoom(t *testing.T) {
+	app, svc, makeToken := setupAppWithAuth(t)
+
+	_, _ = svc.Create(dto.CreateRoomRequest{
+		Name: "비밀", MaxHumans: 6, Visibility: "private",
+	}, "host-1", "H1")
+
+	tok := makeToken("user-1")
+	req := httptest.NewRequest("POST", "/api/rooms/quick", nil)
+	req.Header.Set("Authorization", bearerHeader(tok))
+
+	resp, _ := app.Test(req)
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+
+	var body struct {
+		Created bool `json:"created"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if !body.Created {
+		t.Error("created = false, want true (private rooms must be ignored)")
+	}
+}
+
+func TestQuickMatch_Unauthorized(t *testing.T) {
+	app, _, _ := setupAppWithAuth(t)
+
+	req := httptest.NewRequest("POST", "/api/rooms/quick", nil)
+	// no Authorization header
+
+	resp, _ := app.Test(req)
+	if resp.StatusCode != fiber.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", resp.StatusCode)
+	}
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 func newTestAIPlayer(id string) *entity.Player {
