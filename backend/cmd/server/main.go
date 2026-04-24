@@ -81,6 +81,8 @@ func main() {
 	gameResultRepo := repository.NewGameResultRepository(pool)
 	userRepo := repository.NewUserRepository(pool)
 	sessionRepo := repository.NewSessionRepository(rdb)
+	gameMetricsRepo := repository.NewGameMetricsRepository(pool)
+	_ = gameMetricsRepo // wired into ai.Manager + handler in later tasks
 
 	// --- Room Service ---
 	roomSvc := platform.NewRoomService(pool, logger)
