@@ -136,10 +136,9 @@ export default function WaitingRoom() {
           ))}
         </div>
 
-        <AdBanner
-          slotId={import.meta.env.VITE_ADSENSE_SLOT_WAITING}
-          style={{ marginBottom: '24px' }}
-        />
+        <div style={{ marginBottom: '24px' }}>
+          <AdBanner slot="waiting" gameID={room?.id} />
+        </div>
 
         {/* Start button / waiting text */}
         {isHost ? (

@@ -4,6 +4,7 @@ import { listRooms, joinRoom, createRoom, joinByCode, quickMatch } from '../api'
 import type { Room } from '../types'
 import { prepare, layout } from '@chenglou/pretext'
 import { useAuthStore } from '../store/authStore'
+import AdBanner from '../components/AdBanner'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -579,6 +580,11 @@ export default function LobbyPage() {
           </div>
         </div>
       )}
+
+      {/* Lobby footer ad — placed below primary content, not inside a modal */}
+      <div style={{ marginTop: '24px', padding: '0 16px' }}>
+        <AdBanner slot="lobby" />
+      </div>
     </div>
   )
 }

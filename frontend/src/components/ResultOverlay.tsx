@@ -178,10 +178,9 @@ export default function ResultOverlay() {
           })}
         </div>
 
-        <AdBanner
-          slotId={import.meta.env.VITE_ADSENSE_SLOT_RESULT}
-          style={{ marginTop: '24px', marginBottom: '16px', marginLeft: '24px', marginRight: '24px' }}
-        />
+        <div style={{ margin: '24px 24px 16px' }}>
+          <AdBanner slot="result" gameID={roomID} />
+        </div>
 
         {/* Action buttons */}
         <div style={{
