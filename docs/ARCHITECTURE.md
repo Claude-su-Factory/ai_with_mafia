@@ -185,6 +185,22 @@ sendAction('kill',  { night: { action_type: 'kill', target_id } })
 - **Why:** 방 목록·플레이 유입을 검색에서 확보
 - **How:** `react-helmet-async` 또는 Vite 빌드 시 정적 메타 주입. ROADMAP Tier 2 로 점진 추가
 
+### 4.13 제품 원칙: 동시성·분산 안전성 렌즈 (2026-04-24 ~)
+- **결정:** 모든 설계는 단일 Pod 가정과 멀티 Pod 마이그레이션 경로를 명시한다. 새 스펙마다 "Concurrency & Distribution Analysis" 섹션 필수
+- **Why:**
+  - 프로덕션이 단일 Pod 에서 시작해도 트래픽 증가 시 Pod 수평 확장은 가장 기본적 scaling 방법
+  - 암묵적 단일 Pod 전제는 규모 성장 시 롤백·세션 손실·데이터 중복 같은 대형 incident 로 드러남
+  - 반대로 모든 상태를 처음부터 분산 친화적으로 두는 것은 YAGNI (Redis 왕복·동시성 오버헤드)
+- **How:**
+  - 각 컴포넌트의 상태 위치를 분류 (프로세스 로컬 / Redis / DB / 클라이언트 / 외부)
+  - 멀티 Pod 전환 시 "깨지는 것" 과 이관 경로를 스펙에 명시
+  - Redis 이관 비용이 작은 것 (rate limiter, counter 등) 은 선제적으로 Redis 사용 — 이미 인프라 있음
+  - 이관 비용이 크고 현재 사용자 영향이 0 인 것 (예: RoomService 인메모리 방 registry) 은 스펙에 "transition path" 만 명시하고 작업은 미룸
+- **현 상태:**
+  - Session 재참가 guard, Leader election, WS broadcast 는 이미 Redis 기반 (§4.3 관련)
+  - RoomService `rooms` 맵은 여전히 단일 Pod 제약 (§4.3, §6 참조 — Tier 3 이관 후보)
+- **연결 문서:** CLAUDE.md "Product Principle: 동시성·분산 안전성" 섹션
+
 ### 4.12 제품 원칙: Unit Economics 렌즈 (2026-04-24 ~)
 - **결정:** 모든 기능 결정은 **비용 · 수익 · 리텐션 · 인간 밀도** 4축으로 판단한다
 - **Why:** 이 플랫폼은 Claude API 비용을 광고 수익으로 감당하는 구조다. 비용이 수익을 초과하면 성장 자체가 손실을 확대한다. 재미가 부족하면 유입은 있어도 리텐션이 0이고, 광고 노출 기회가 사라져 수익 구조가 무너진다. 따라서 "재미"와 "수익"은 같은 제약 안에서 동시에 최적화되어야 하며, 어느 한쪽만 고려한 결정은 지속 불가능하다

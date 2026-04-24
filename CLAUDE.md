@@ -41,6 +41,36 @@
 
 ---
 
+## Product Principle: 동시성·분산 안전성 (MANDATORY)
+
+모든 설계는 **"멀티 Pod 로 확장되면 무엇이 깨지는가"** 를 미리 답해야 한다. 단일 Pod 전제는 의도적 선택일 수 있지만, **암묵적 전제**는 규모 성장 시 세션 손실 · 데이터 중복 · 방 overfill 같은 대형 incident 로 드러난다. 반대로 모든 상태를 처음부터 분산 친화적으로 두는 것도 YAGNI.
+
+**설계 시 반드시 답해야 하는 4가지 질문:**
+
+1. **이 컴포넌트의 상태는 어디에 있는가?** — 프로세스 메모리 / Redis / Postgres / 클라이언트 / 외부
+2. **멀티 Pod 환경에서 그 상태가 일관되어야 하는가?** — 모든 Pod 가 같은 값을 봐야 하는가
+3. **불일치가 허용된다면 언제까지, 어느 수준까지?** — eventual consistency 경계
+4. **멀티 Pod 이관 시 마이그레이션 경로는?** — Redis 이관 / DB 트랜잭션 / sticky routing / 재설계
+
+**프로젝트 현 상태 (ARCHITECTURE §4.3, §4.13 참조):**
+
+| 컴포넌트 | 상태 위치 | 분산 상태 |
+|---------|---------|---------|
+| `SessionRepository` (재참가 guard) | Redis | ✅ 분산 안전 |
+| `LeaderLock` (게임 관리 단일 리더) | Redis SETNX | ✅ 분산 안전 |
+| WS broadcast / `publishToRoom` | Redis pub/sub | ✅ 분산 안전 |
+| **RoomService `rooms` 맵** | 프로세스 로컬 | ⚠️ 단일 Pod 전제 — Tier 3 이관 |
+| AI 발화 쿨다운 | 프로세스 로컬 | ✅ (게임 1개는 리더 Pod 1곳만 관리) |
+
+**판단 규칙:**
+
+- 새 상태를 프로세스 메모리에만 두려면 **왜 거기가 적절한지** 스펙에 명시
+- Redis 이관 비용이 작다면(기존 go-redis 클라이언트 재사용 가능 수준) **선제적 Redis 사용**
+- **데이터 일관성이 사용자 UX 에 직접 영향**(결제·세션·방 overfill·랭킹)이면 반드시 단일 진실 저장소(Redis / DB) 사용
+- 매 스펙에 **"Concurrency & Distribution Analysis"** 섹션을 포함 — 생략 금지
+
+---
+
 ## 개발 워크플로우 (MANDATORY)
 
 모든 세션은 아래 순서를 **예외 없이** 따른다.
