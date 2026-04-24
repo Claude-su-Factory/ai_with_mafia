@@ -122,7 +122,7 @@ func (a *Agent) onChat(ctx context.Context, event entity.GameEvent) {
 	a.addHistory(anthropic.NewUserMessage(anthropic.NewTextBlock(userMsg)))
 
 	// LLM이 응답 여부 자율 판단 (응답 또는 [PASS])
-	reply := a.callLLM(ctx, a.cfg.ModelDefault,
+	reply := a.callLLM(ctx, a.cfg.ModelDefault, "chat",
 		"위 대화를 보고 지금 발언해야 한다면 발언 내용을, 발언할 필요가 없다면 정확히 [PASS]라고만 답하세요.")
 	if reply == "" || strings.TrimSpace(reply) == "[PASS]" {
 		return
@@ -147,7 +147,7 @@ func (a *Agent) onMafiaChat(ctx context.Context, event entity.GameEvent) {
 	userMsg := fmt.Sprintf("[마피아 채널] [%s]: %s", senderName, message)
 	a.addHistory(anthropic.NewUserMessage(anthropic.NewTextBlock(userMsg)))
 
-	reply := a.callLLM(ctx, a.cfg.ModelDefault,
+	reply := a.callLLM(ctx, a.cfg.ModelDefault, "chat",
 		"마피아 팀 채널입니다. 발언할 내용이 있으면 하고, 없으면 [PASS]라고만 답하세요.")
 	if reply == "" || strings.TrimSpace(reply) == "[PASS]" {
 		return
@@ -188,7 +188,7 @@ func (a *Agent) openDiscussion(ctx context.Context, event entity.GameEvent) {
 		prompt = fmt.Sprintf("낮 토론 %d라운드가 시작됐습니다. 지금까지의 대화를 바탕으로 의심되는 점이나 관찰을 한 문장으로 말하세요.", round)
 	}
 
-	reply := a.callLLM(ctx, a.cfg.ModelDefault, prompt)
+	reply := a.callLLM(ctx, a.cfg.ModelDefault, "chat", prompt)
 	if reply == "" || strings.TrimSpace(reply) == "[PASS]" {
 		return
 	}
@@ -209,7 +209,7 @@ func (a *Agent) decideVote(ctx context.Context, event entity.GameEvent) {
 		strings.Join(alivePlayers, ", "),
 	)
 	a.addHistory(anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)))
-	targetID := strings.TrimSpace(a.callLLM(ctx, a.cfg.ModelReasoning, ""))
+	targetID := strings.TrimSpace(a.callLLM(ctx, a.cfg.ModelReasoning, "decision", ""))
 	if targetID != "" && containsID(alivePlayers, targetID) {
 		select {
 		case a.outCh <- AgentOutput{
@@ -230,7 +230,7 @@ func (a *Agent) decideKill(ctx context.Context, event entity.GameEvent) {
 		strings.Join(alivePlayers, ", "),
 	)
 	a.addHistory(anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)))
-	targetID := strings.TrimSpace(a.callLLM(ctx, a.cfg.ModelReasoning, ""))
+	targetID := strings.TrimSpace(a.callLLM(ctx, a.cfg.ModelReasoning, "decision", ""))
 	if targetID != "" && containsID(alivePlayers, targetID) {
 		select {
 		case a.outCh <- AgentOutput{
@@ -251,7 +251,7 @@ func (a *Agent) decideInvestigate(ctx context.Context, event entity.GameEvent) {
 		strings.Join(alivePlayers, ", "),
 	)
 	a.addHistory(anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)))
-	targetID := strings.TrimSpace(a.callLLM(ctx, a.cfg.ModelReasoning, ""))
+	targetID := strings.TrimSpace(a.callLLM(ctx, a.cfg.ModelReasoning, "decision", ""))
 	if targetID != "" && containsID(alivePlayers, targetID) {
 		select {
 		case a.outCh <- AgentOutput{
@@ -285,7 +285,7 @@ func (a *Agent) maxTokensFor(kind string) int {
 	return a.cfg.MaxTokensChat
 }
 
-func (a *Agent) callLLM(ctx context.Context, model, extraInstruction string) string {
+func (a *Agent) callLLM(ctx context.Context, model, kind, extraInstruction string) string {
 	messages := make([]anthropic.MessageParam, len(a.history))
 	copy(messages, a.history)
 
@@ -296,7 +296,7 @@ func (a *Agent) callLLM(ctx context.Context, model, extraInstruction string) str
 
 	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
-		MaxTokens: 300,
+		MaxTokens: int64(a.maxTokensFor(kind)),
 		System:    []anthropic.TextBlockParam{{Text: systemText}},
 		Messages:  messages,
 	})
