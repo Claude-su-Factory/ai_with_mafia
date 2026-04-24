@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"strings"
@@ -27,9 +28,13 @@ type mockUserStore struct {
 	playerID    string
 	displayName string
 	updateErr   error
+	getErr      error // if set, GetOrCreate returns this error (simulate DB outage)
 }
 
 func (m *mockUserStore) GetOrCreate(_ context.Context, _, _ string) (string, error) {
+	if m.getErr != nil {
+		return "", m.getErr
+	}
 	return m.playerID, nil
 }
 func (m *mockUserStore) GetDisplayName(_ context.Context, _ string) (string, error) {
@@ -596,6 +601,99 @@ func TestResolvePlayer_NilUserRepo_Returns500(t *testing.T) {
 	}
 	if resp.StatusCode != fiber.StatusInternalServerError {
 		t.Errorf("expected 500 for nil userRepo with valid JWT, got %d", resp.StatusCode)
+	}
+}
+
+// ─── Infrastructure failure (DB outage) → 500, not 401 ───────────────────────
+//
+// Reviewer-identified bug: plain DB errors from GetOrCreate used to fall through
+// respondPlayerErr's fallback and surface as 401 Unauthorized — making a valid
+// token look forged. Handler now wraps non-auth errors with fiber.ErrInternalServerError
+// so errors.As classifies them as 500.
+
+// setupAppWithUserStore wires a Handler around a caller-supplied UserStore so
+// tests can inject failures (e.g. a mock that returns pgx-style errors).
+func setupAppWithUserStore(t *testing.T, store UserStore) (*fiber.App, func(sub string) string) {
+	t.Helper()
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("generate ecdsa key: %v", err)
+	}
+	svc := NewRoomService(nil, zap.NewNop())
+	h := NewHandler(svc, &mockHub{}, store, nil, nil, &privKey.PublicKey)
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		},
+	})
+	h.RegisterRoutes(app)
+
+	makeToken := func(sub string) string {
+		claims := jwt.MapClaims{
+			"sub": sub,
+			"exp": time.Now().Add(time.Hour).Unix(),
+			"user_metadata": map[string]any{"full_name": "테스터"},
+		}
+		tok, signErr := jwt.NewWithClaims(jwt.SigningMethodES256, claims).SignedString(privKey)
+		if signErr != nil {
+			t.Fatalf("makeToken: %v", signErr)
+		}
+		return tok
+	}
+	return app, makeToken
+}
+
+func TestMe_DBError_Returns500(t *testing.T) {
+	store := &mockUserStore{getErr: errors.New("pgx: connection refused")}
+	app, makeToken := setupAppWithUserStore(t, store)
+	tok := makeToken("user-1")
+
+	req := httptest.NewRequest("GET", "/api/me", nil)
+	req.Header.Set("Authorization", bearerHeader(tok))
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusInternalServerError {
+		t.Errorf("expected 500 when userRepo.GetOrCreate fails with DB error, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateRoom_DBError_Returns500(t *testing.T) {
+	store := &mockUserStore{getErr: errors.New("pgx: connection refused")}
+	app, makeToken := setupAppWithUserStore(t, store)
+	tok := makeToken("user-1")
+
+	req := httptest.NewRequest("POST", "/api/rooms",
+		jsonBody(`{"name":"방","visibility":"public","max_humans":6}`))
+	req.Header.Set("Authorization", bearerHeader(tok))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusInternalServerError {
+		t.Errorf("expected 500 when resolvePlayerFull DB lookup fails, got %d", resp.StatusCode)
+	}
+}
+
+func TestCreateRoom_NilUserRepo_Returns500(t *testing.T) {
+	app, makeToken := setupAppNilUserRepo(t)
+	tok := makeToken("user-1")
+
+	req := httptest.NewRequest("POST", "/api/rooms",
+		jsonBody(`{"name":"방","visibility":"public","max_humans":6}`))
+	req.Header.Set("Authorization", bearerHeader(tok))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	if resp.StatusCode != fiber.StatusInternalServerError {
+		t.Errorf("expected 500 for nil userRepo via resolvePlayerFull, got %d", resp.StatusCode)
 	}
 }
 

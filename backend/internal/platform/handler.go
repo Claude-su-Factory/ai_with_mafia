@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,8 +15,11 @@ import (
 )
 
 // respondPlayerErr writes the appropriate HTTP error response for resolvePlayer /
-// resolvePlayerFull failures. Server-side errors (e.g., nil userRepo) return 500;
-// all auth failures return 401.
+// resolvePlayerFull failures. Server-side failures (nil userRepo, DB outages,
+// other infrastructure errors) return 500; JWT/auth failures return 401.
+// Callers MUST wrap non-auth errors with fiber.ErrInternalServerError (e.g. via
+// fmt.Errorf("%w: ...", fiber.ErrInternalServerError, cause)) so errors.As can
+// classify them here.
 func respondPlayerErr(c *fiber.Ctx, err error) error {
 	var fiberErr *fiber.Error
 	if errors.As(err, &fiberErr) && fiberErr.Code == fiber.StatusInternalServerError {
@@ -97,7 +101,11 @@ func (h *Handler) resolvePlayer(c *fiber.Ctx) (string, error) {
 	if h.userRepo == nil {
 		return "", fiber.ErrInternalServerError
 	}
-	return h.userRepo.GetOrCreate(c.Context(), authID, displayName)
+	playerID, err := h.userRepo.GetOrCreate(c.Context(), authID, displayName)
+	if err != nil {
+		return "", fmt.Errorf("%w: GetOrCreate: %v", fiber.ErrInternalServerError, err)
+	}
+	return playerID, nil
 }
 
 // resolvePlayerFull validates the JWT and returns playerID + stored display_name.
@@ -113,7 +121,7 @@ func (h *Handler) resolvePlayerFull(c *fiber.Ctx) (playerID, displayName string,
 	}
 	playerID, err = h.userRepo.GetOrCreate(c.Context(), authID, jwtName)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("%w: GetOrCreate: %v", fiber.ErrInternalServerError, err)
 	}
 	displayName, err = h.userRepo.GetDisplayName(c.Context(), playerID)
 	if err != nil || displayName == "" {
