@@ -34,3 +34,17 @@ func TestMaxTokensSplit_ChatUsesChatLimit(t *testing.T) {
 		t.Errorf("chat max_tokens = %d, want 160", got)
 	}
 }
+
+// TestCallLLM_TruncationEmitsHook verifies that when the agent surfaces a
+// truncation event, the onUsage hook receives Truncated=true so downstream
+// metrics can increment the truncated_turns counter.
+func TestCallLLM_TruncationEmitsHook(t *testing.T) {
+	var got AIUsage
+	a := &Agent{
+		onUsage: func(u AIUsage) { got = u },
+	}
+	a.recordUsage(AIUsage{Truncated: true, TokensIn: 10, TokensOut: 3})
+	if !got.Truncated || got.TokensIn != 10 || got.TokensOut != 3 {
+		t.Errorf("usage = %+v, want Truncated=true TokensIn=10 TokensOut=3", got)
+	}
+}

@@ -14,6 +14,15 @@ import (
 	"ai-playground/internal/domain/entity"
 )
 
+// AIUsage mirrors repository.AIUsage for use at the agent boundary so this
+// lower-level package does not import repository. Manager bridges the copy
+// (field layout must stay in sync with repository.AIUsage).
+type AIUsage struct {
+	TokensIn, TokensOut                  int
+	CacheReadTokens, CacheCreationTokens int
+	Truncated                            bool
+}
+
 type Agent struct {
 	PlayerID    string
 	Persona     Persona
@@ -26,6 +35,10 @@ type Agent struct {
 	cfg         *config.AIConfig
 	client      *anthropic.Client
 	logger      *zap.Logger
+	// onUsage is invoked after each successful Claude API call with the usage
+	// counters and truncation flag. Nil-safe via recordUsage — Agents
+	// constructed without a manager-provided hook still work.
+	onUsage func(AIUsage)
 }
 
 type AgentOutput struct {
@@ -285,6 +298,15 @@ func (a *Agent) maxTokensFor(kind string) int {
 	return a.cfg.MaxTokensChat
 }
 
+// recordUsage invokes the usage hook if set. Nil-safe so Agents constructed
+// without a manager-provided hook still work (e.g. unit tests, solo runs).
+func (a *Agent) recordUsage(u AIUsage) {
+	if a.onUsage == nil {
+		return
+	}
+	a.onUsage(u)
+}
+
 func (a *Agent) callLLM(ctx context.Context, model, kind, extraInstruction string) string {
 	messages := make([]anthropic.MessageParam, len(a.history))
 	copy(messages, a.history)
@@ -304,6 +326,25 @@ func (a *Agent) callLLM(ctx context.Context, model, kind, extraInstruction strin
 		a.logger.Warn("claude api error", zap.String("agent", a.PlayerID), zap.Error(err))
 		return ""
 	}
+
+	// Spec §3-A: surface stop_reason == "max_tokens" so downstream metrics can
+	// increment truncated_turns and log a warning per truncated response.
+	truncated := string(resp.StopReason) == "max_tokens"
+	a.recordUsage(AIUsage{
+		TokensIn:            int(resp.Usage.InputTokens),
+		TokensOut:           int(resp.Usage.OutputTokens),
+		CacheReadTokens:     int(resp.Usage.CacheReadInputTokens),
+		CacheCreationTokens: int(resp.Usage.CacheCreationInputTokens),
+		Truncated:           truncated,
+	})
+	if truncated {
+		a.logger.Warn("llm: truncated by max_tokens",
+			zap.String("agent", a.PlayerID),
+			zap.String("kind", kind),
+			zap.Int("max_tokens", a.maxTokensFor(kind)),
+		)
+	}
+
 	if len(resp.Content) == 0 {
 		return ""
 	}
