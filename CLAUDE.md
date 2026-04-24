@@ -79,6 +79,15 @@
 2. **구현** — 계획이 준비되면 `superpowers:subagent-driven-development` 스킬로 실행
 3. **코드 리뷰** — 구현 완료 후 `superpowers:requesting-code-review` 스킬을 **반드시** 호출 (사용자가 명시적 생략 요청하지 않는 한 예외 없음). 리뷰 이슈는 수정 후 재검토
 
+### Plan 실행 모드 기본값 (MANDATORY)
+
+모든 implementation plan 은 **subagent-driven 으로 실행한다**. `superpowers:writing-plans` 가 제시하는 "subagent or inline?" 선택지를 **매번 묻지 않는다** — 기본값으로 `superpowers:subagent-driven-development` 를 호출한다. 예외:
+
+- 사용자가 명시적으로 **"inline"** 또는 **"executing-plans"** 라고 지정한 경우에만 `superpowers:executing-plans` 사용
+- Task 1개짜리 trivial plan 은 inline 가능하지만, 그 경우에도 TDD 사이클은 유지
+
+**이유:** 이 프로젝트의 plan 들은 backend Go · frontend TS · 인프라(Redis/Postgres/Anthropic) 에 걸쳐 컨텍스트 다양성이 크다. Fresh subagent 당 task cluster 를 할당하는 편이 단일 세션 컨텍스트 누적보다 판단력 유지에 유리하다. 또한 프로젝트 하네스(`mafia-orchestrator` + backend/frontend/qa 에이전트) 가 이 흐름에 맞춰 설계되어 있다.
+
 ---
 
 ## Skill routing (MANDATORY)
