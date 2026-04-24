@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -29,7 +30,7 @@ func (s *RedisStorage) key(k string) string {
 
 func (s *RedisStorage) Get(key string) ([]byte, error) {
 	b, err := s.client.Get(context.Background(), s.key(key)).Bytes()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return nil, nil
 	}
 	return b, err

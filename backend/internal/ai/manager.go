@@ -93,7 +93,8 @@ func (m *Manager) SaveHistories(ctx context.Context, roomID string) {
 // players with IsAI=true will get an agent; personas must be pre-assigned
 // (same order as AI players appear in players slice).
 // preloadedHistories may be nil (fresh start) or contain histories from a previous session (recovery).
-func (m *Manager) SpawnAgents(ctx context.Context, roomID string, players []*entity.Player, personas []Persona, preloadedHistories map[string][]anthropic.MessageParam) {
+// gameID is the unified identifier shared with game_results.id / game_metrics.game_id.
+func (m *Manager) SpawnAgents(ctx context.Context, roomID, gameID string, players []*entity.Player, personas []Persona, preloadedHistories map[string][]anthropic.MessageParam) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -136,15 +137,15 @@ func (m *Manager) SpawnAgents(ctx context.Context, roomID string, players []*ent
 				a.history = h
 			}
 		}
-		// Wire per-turn usage hook into the metrics sink. roomID is used as
-		// the game_id key today; Manager does not yet carry a distinct game_id
-		// at spawn time (see Task 12 DONE_WITH_CONCERNS note). Closure captures
-		// ctx + roomID so agent goroutines don't need to know about metrics.
+		// Wire per-turn usage hook into the metrics sink. gameID is the unified
+		// id shared with game_results.id and game_metrics.game_id (T21). Closure
+		// captures ctx + gameID so agent goroutines don't need to know about
+		// metrics.
 		if m.metrics != nil {
-			gameID := roomID
 			sink := m.metrics
+			gid := gameID
 			a.onUsage = func(u AIUsage) {
-				_ = sink.AddAIUsage(ctx, gameID, u)
+				_ = sink.AddAIUsage(ctx, gid, u)
 			}
 		}
 		agents[p.ID] = a
@@ -200,7 +201,9 @@ func (m *Manager) handleOutput(roomID string, out AgentOutput) {
 }
 
 // AddAgent creates and starts a single AI agent at runtime (e.g. mid-game AI backfill).
-func (m *Manager) AddAgent(ctx context.Context, roomID string, playerID string, role entity.Role, persona Persona) {
+// gameID must match the active game's unified id so per-turn metrics are accumulated
+// under the correct game_metrics row.
+func (m *Manager) AddAgent(ctx context.Context, roomID, gameID string, playerID string, role entity.Role, persona Persona) {
 	m.mu.Lock()
 
 	// Collect mafia allies from existing agents in this room
@@ -229,12 +232,12 @@ func (m *Manager) AddAgent(ctx context.Context, roomID string, playerID string, 
 
 	a := NewAgent(playerID, persona, role, allies, m.cfg, m.client, m.logger)
 
-	// Wire per-turn usage hook (see SpawnAgents for the roomID-as-gameID note).
+	// Wire per-turn usage hook (gameID is the unified id — see SpawnAgents).
 	if m.metrics != nil {
-		gameID := roomID
 		sink := m.metrics
+		gid := gameID
 		a.onUsage = func(u AIUsage) {
-			_ = sink.AddAIUsage(ctx, gameID, u)
+			_ = sink.AddAIUsage(ctx, gid, u)
 		}
 	}
 

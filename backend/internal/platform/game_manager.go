@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"ai-playground/config"
@@ -20,18 +21,19 @@ import (
 // GameManager coordinates game lifecycle: leader election, AI spawn, game start/recovery,
 // snapshot delivery, and event routing.
 type GameManager struct {
-	mu             sync.Mutex
-	mafiaCfg       *config.MafiaGameConfig
-	ai             *ai.Manager
-	personaPool    *ai.PersonaPool
-	leaderLock     *LeaderLock
-	instanceID     string
-	gameStateRepo  *repository.GameStateRepository
-	aiHistoryRepo  *repository.AIHistoryRepository
-	gameResultRepo *repository.GameResultRepository
-	roomSvc        *RoomService
-	logger         *zap.Logger
-	activeGames    map[string]activeGame // roomID -> game + cancel
+	mu              sync.Mutex
+	mafiaCfg        *config.MafiaGameConfig
+	ai              *ai.Manager
+	personaPool     *ai.PersonaPool
+	leaderLock      *LeaderLock
+	instanceID      string
+	gameStateRepo   *repository.GameStateRepository
+	aiHistoryRepo   *repository.AIHistoryRepository
+	gameResultRepo  *repository.GameResultRepository
+	gameMetricsRepo *repository.GameMetricsRepository
+	roomSvc         *RoomService
+	logger          *zap.Logger
+	activeGames     map[string]activeGame // roomID -> game + cancel
 
 	// Callbacks wired by the caller after construction.
 	GameEventFunc  func(roomID string, event entity.GameEvent)
@@ -42,6 +44,7 @@ type activeGame struct {
 	game   entity.Game
 	cancel context.CancelFunc
 	ctx    context.Context // 신규
+	gameID string          // unified id shared with game_results.id + game_metrics.game_id (T21)
 }
 
 func NewGameManager(
@@ -55,19 +58,21 @@ func NewGameManager(
 	grRepo *repository.GameResultRepository,
 	roomSvc *RoomService,
 	l *zap.Logger,
+	metricsRepo *repository.GameMetricsRepository,
 ) *GameManager {
 	return &GameManager{
-		mafiaCfg:       mafiaCfg,
-		ai:             a,
-		personaPool:    pool,
-		leaderLock:     ll,
-		instanceID:     instanceID,
-		gameStateRepo:  gsRepo,
-		aiHistoryRepo:  ahRepo,
-		gameResultRepo: grRepo,
-		roomSvc:        roomSvc,
-		logger:         l,
-		activeGames:    make(map[string]activeGame),
+		mafiaCfg:        mafiaCfg,
+		ai:              a,
+		personaPool:     pool,
+		leaderLock:      ll,
+		instanceID:      instanceID,
+		gameStateRepo:   gsRepo,
+		aiHistoryRepo:   ahRepo,
+		gameResultRepo:  grRepo,
+		gameMetricsRepo: metricsRepo,
+		roomSvc:         roomSvc,
+		logger:          l,
+		activeGames:     make(map[string]activeGame),
 	}
 }
 
@@ -104,6 +109,9 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 			return nil
 		}
 	}
+
+	// Unified game identifier shared with game_results.id + game_metrics.game_id (T21).
+	gameID := uuid.NewString()
 
 	// Add AI players to fill up to TotalPlayers (skip if already full, e.g. recovery path)
 	aiCount := mafia.TotalPlayers - len(room.GetPlayers())
@@ -146,10 +154,36 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 		})
 	}
 
-	// Spawn AI agents
-	gm.ai.SpawnAgents(gameCtx, room.ID, room.GetPlayers(), personas, preloadedHistories)
+	// Spawn AI agents with the unified gameID so per-turn metrics accumulate
+	// under the correct game_metrics row.
+	gm.ai.SpawnAgents(gameCtx, room.ID, gameID, room.GetPlayers(), personas, preloadedHistories)
 
 	startedAt := time.Now()
+
+	// Emit Create metric (fail-open — never block game start on metrics I/O).
+	if gm.gameMetricsRepo != nil {
+		humansCount := 0
+		aisCount := 0
+		for _, p := range room.GetPlayers() {
+			if p.IsAI {
+				aisCount++
+			} else {
+				humansCount++
+			}
+		}
+		if err := gm.gameMetricsRepo.Create(parent, repository.GameMetricInit{
+			GameID:    gameID,
+			RoomID:    room.ID,
+			StartedAt: startedAt,
+			Humans:    humansCount,
+			AIs:       aisCount,
+		}); err != nil {
+			gm.logger.Warn("metrics: Create failed",
+				zap.String("game_id", gameID),
+				zap.String("room_id", room.ID),
+				zap.Error(err))
+		}
+	}
 
 	go func() {
 		// Heartbeat to maintain leader lock
@@ -202,7 +236,8 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 				}
 
 				if event.Type == entity.EventGameOver {
-					go gm.saveGameResult(room, event, startedAt)
+					gm.finalizeMetrics(gameID, event)
+					go gm.saveGameResult(room, event, startedAt, gameID)
 				}
 
 				if gm.GameEventFunc != nil {
@@ -216,7 +251,8 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 					case event := <-game.Subscribe():
 						gm.ai.BroadcastEvent(room.ID, event)
 						if event.Type == entity.EventGameOver {
-							go gm.saveGameResult(room, event, startedAt)
+							gm.finalizeMetrics(gameID, event)
+							go gm.saveGameResult(room, event, startedAt, gameID)
 						}
 						if gm.GameEventFunc != nil {
 							gm.GameEventFunc(room.ID, event)
@@ -229,11 +265,32 @@ func (gm *GameManager) start(parent context.Context, room *entity.Room, preloade
 		}
 	}()
 
-	gm.activeGames[room.ID] = activeGame{game: game, cancel: cancelGame, ctx: gameCtx}
+	gm.activeGames[room.ID] = activeGame{game: game, cancel: cancelGame, ctx: gameCtx, gameID: gameID}
 	return nil
 }
 
-func (gm *GameManager) saveGameResult(room *entity.Room, event entity.GameEvent, startedAt time.Time) {
+// finalizeMetrics emits the game-over Finalize row. Fail-open on I/O error
+// so metrics infra outages don't block shutdown. Called from both the normal
+// event path and the drain-after-cancel path.
+func (gm *GameManager) finalizeMetrics(gameID string, event entity.GameEvent) {
+	if gm.gameMetricsRepo == nil {
+		return
+	}
+	winner, _ := event.Payload["winner"].(string)
+	round, _ := event.Payload["round"].(int)
+	if err := gm.gameMetricsRepo.Finalize(context.Background(), repository.GameMetricFinal{
+		GameID:  gameID,
+		EndedAt: time.Now(),
+		Rounds:  round,
+		Winner:  winner,
+	}); err != nil {
+		gm.logger.Warn("metrics: Finalize failed",
+			zap.String("game_id", gameID),
+			zap.Error(err))
+	}
+}
+
+func (gm *GameManager) saveGameResult(room *entity.Room, event entity.GameEvent, startedAt time.Time, gameID string) {
 	if gm.gameResultRepo == nil {
 		return
 	}
@@ -254,6 +311,7 @@ func (gm *GameManager) saveGameResult(room *entity.Room, event entity.GameEvent,
 	}
 
 	if err := gm.gameResultRepo.Save(context.Background(), repository.GameResult{
+		ID:          gameID,
 		RoomID:      room.ID,
 		WinnerTeam:  winner,
 		RoundCount:  round,
@@ -261,7 +319,9 @@ func (gm *GameManager) saveGameResult(room *entity.Room, event entity.GameEvent,
 		Players:     resultPlayers,
 	}); err != nil {
 		gm.logger.Error("failed to save game result",
-			zap.String("room_id", room.ID), zap.Error(err))
+			zap.String("room_id", room.ID),
+			zap.String("game_id", gameID),
+			zap.Error(err))
 	}
 }
 
@@ -414,6 +474,6 @@ func (gm *GameManager) ReplaceWithAI(roomID, playerID string, role entity.Role) 
 	}
 
 	personas := gm.personaPool.Assign(1)
-	gm.ai.AddAgent(ag.ctx, roomID, playerID, role, personas[0])
+	gm.ai.AddAgent(ag.ctx, roomID, ag.gameID, playerID, role, personas[0])
 	return nil
 }

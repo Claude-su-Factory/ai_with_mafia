@@ -2004,16 +2004,22 @@ Record: `p95 = ___ ms` (must be ≤ 3000), `success_rate = ___` (must be ≥ 0.9
 
 ## 5. Metric coverage 100%
 
+After T21 unified `game_results.id` with `game_metrics.game_id`, every finished
+game should have a matching `game_metrics` row. Verify by counting finished
+games against their metric rows in the last hour:
+
 ```sql
-WITH ids AS (
-  SELECT game_id FROM game_results WHERE ended_at > now() - interval '1 hour'
-)
 SELECT
-  COUNT(*) - (SELECT COUNT(*) FROM game_metrics WHERE game_id IN (SELECT game_id FROM ids))
-  AS missing
-FROM ids;
+  (SELECT COUNT(*) FROM game_results WHERE created_at > now() - interval '1 hour') AS games,
+  (SELECT COUNT(*) FROM game_metrics
+   WHERE started_at > now() - interval '1 hour'
+     AND game_id NOT LIKE 'lobby-%'
+     AND ended_at IS NOT NULL) AS metric_rows_for_finished_games,
+  (SELECT COUNT(*) FROM game_results r
+   WHERE r.created_at > now() - interval '1 hour'
+     AND NOT EXISTS (SELECT 1 FROM game_metrics m WHERE m.game_id = r.id)) AS missing;
 ```
-`missing` must be 0.
+`missing` must be 0. `games` and `metric_rows_for_finished_games` should match.
 
 ## 6. 2-Pod rate limiter simulation
 

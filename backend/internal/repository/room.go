@@ -146,7 +146,12 @@ func (r *GameResultRepository) Save(ctx context.Context, result GameResult) erro
 	}
 	defer tx.Rollback(ctx)
 
-	id := newResultID()
+	// Honor caller-provided ID so game_results.id unifies with game_metrics.game_id (T21).
+	// Legacy callers that don't set ID still get a fresh UUID, preserving back-compat.
+	id := result.ID
+	if id == "" {
+		id = newResultID()
+	}
 	_, err = tx.Exec(ctx, `
 		INSERT INTO game_results (id, room_id, winner_team, round_count, duration_sec)
 		VALUES ($1, $2, $3, $4, $5)

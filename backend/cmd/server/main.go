@@ -97,7 +97,7 @@ func main() {
 	aiManager := ai.NewManager(&cfg.AI, personaPool, cfg.AI.APIKey, logger, aiHistoryRepo, &aiMetricsAdapter{repo: gameMetricsRepo})
 
 	// --- Game Manager ---
-	gm := platform.NewGameManager(&cfg.Game.Mafia, aiManager, personaPool, leaderLock, instanceID, gameStateRepo, aiHistoryRepo, gameResultRepo, roomSvc, logger)
+	gm := platform.NewGameManager(&cfg.Game.Mafia, aiManager, personaPool, leaderLock, instanceID, gameStateRepo, aiHistoryRepo, gameResultRepo, roomSvc, logger, gameMetricsRepo)
 
 	// --- WebSocket Hub ---
 	gameHub := ws.NewHub(ctx, roomSvc, gm, logger, rdb, instanceID, cfg.Server.ReconnectGraceSec)

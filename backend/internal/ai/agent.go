@@ -291,7 +291,14 @@ func containsID(ids []string, target string) bool {
 // maxTokensFor returns the token limit appropriate for the given use-case.
 // "chat" = free-form discussion; "decision" = short ID-only response
 // (vote/kill/investigate). See phase-A design §3-A.
+//
+// Nil-guard: Agents constructed without a config (e.g. minimal unit tests)
+// fall back to a conservative default that matches MaxTokensChat so the
+// method never panics on a nil a.cfg.
 func (a *Agent) maxTokensFor(kind string) int {
+	if a.cfg == nil {
+		return 160 // conservative default matching MaxTokensChat
+	}
 	if kind == "decision" {
 		return a.cfg.MaxTokensDecision
 	}
