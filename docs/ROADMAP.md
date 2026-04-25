@@ -98,6 +98,13 @@
   - Phase C — 새 역할 or 방 사이즈 가변 (후 `ai_count` 분포 보고 결정)
   - Phase D — 랭킹 + 시즌 (C 확정 후)
 
+### T2-0c. Data retention 작업의 사전 조건 — cascade 삭제 가이드 (2026-04-25 spec self-review 발견)
+- **배경**: FK 금지 정책(ARCHITECTURE §4.14) 으로 `game_results` 가 DELETE 될 때 `game_result_players` 가 자동 cascade 되지 않는다
+- [ ] retention 정책 도입 전에 `GameResultRepository` 에 `DeleteOlderThan(t time.Time)` 같은 메서드를 추가하고, 자식(`game_result_players`) 을 **부모보다 먼저** 단일 트랜잭션에서 삭제하도록 명시
+- [ ] 동일 패턴이 필요한 향후 테이블 (예: `game_metrics` 가 `game_results` 와 의미적으로 1:1 이지만 hard cascade 불필요) 도 retention 도입 시 점검
+- **출처**: `docs/superpowers/specs/2026-04-25-db-schema-policy-design.md` D-1
+- **우선순위**: retention 도입 직전. 단독으로는 가치 없음 (현재 DELETE 사용처 0건)
+
 ### T2-0b. Phase A follow-up: `game_id` vs `room_id` 분리 (✅ T21 완료 · 2026-04-24 · `503e9ea`)
 - [x] `GameMetricsRepository.Create` / `Finalize` 를 게임 생명주기에 훅
 - [x] `game_results.id` ↔ `game_metrics.game_id` 를 동일 UUID 로 통일 (GameManager.start 에서 pre-generate)
