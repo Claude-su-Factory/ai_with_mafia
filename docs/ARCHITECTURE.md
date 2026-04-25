@@ -185,6 +185,26 @@ sendAction('kill',  { night: { action_type: 'kill', target_id } })
 - **Why:** 방 목록·플레이 유입을 검색에서 확보
 - **How:** `react-helmet-async` 또는 Vite 빌드 시 정적 메타 주입. ROADMAP Tier 2 로 점진 추가
 
+### 4.14 DB 스키마 관리 정책 — 자동 migration 폐기 + FK 금지 (2026-04-25 ~)
+- **결정:**
+  - DB 스키마는 사람이 직접 적용한다. 자동 migration 도구(`golang-migrate` 등)를 쓰지 않는다
+  - `FOREIGN KEY` 제약을 사용하지 않는다
+  - 스키마의 단일 진실 위치는 `README.md` "DB Schema" 섹션
+- **Why:**
+  - 자동 migration: 부팅마다 스키마를 건드리는 것이 운영상 불편하다고 판단(현 단계 트래픽 규모에서). 또한 멀티 Pod 환경에서 여러 Pod 가 동시에 부팅할 때 migration race·lock contention 가능성을 회피
+  - FK 금지: ① 멀티 라이터 동시 삽입 시 부모 row 검증 잠금이 핫 패스의 latency 를 악화 ② 분산 환경에서 cascade 의도와 실제 타이밍이 어긋나기 쉬움 ③ 무결성을 애플리케이션 트랜잭션·`ON CONFLICT` 로 명시적으로 처리하는 편이 코드 베이스 가독성에 좋다
+  - 단일 진실 위치: README 가 첫 방문자가 보는 곳. DDL 이 흩어지지 않게 함
+- **How:**
+  - `backend/internal/repository/db.go` 에서 `RunMigrations` 함수 제거
+  - `backend/cmd/server/main.go` 에서 migration 호출 블록 제거
+  - `backend/migrations/` 디렉토리 삭제. `go.mod` 에서 `golang-migrate/migrate/v4` 제거
+  - 모든 DDL 을 `README.md` "DB Schema" 섹션에 통합. 모든 `CREATE TABLE` / `CREATE INDEX` 는 `IF NOT EXISTS`
+  - 스키마 변경 시 PR 안에서 README 갱신 + ARCHITECTURE 결정 로그 갱신 + 사람이 운영 DB 에 직접 적용
+- **트레이드오프:**
+  - 운영 자동화 측면에서는 후퇴 — 한편 현재 사용자 규모에서는 자동화 비용이 가치 초과
+  - 향후 트래픽이 커지거나 팀 규모가 커지면 재평가. 그때는 idempotent SQL + 별도 migration runner job 으로 도입 가능
+- **연결 문서:** CLAUDE.md "DB 스키마 정책" 섹션 + `README.md` "DB Schema"
+
 ### 4.13 제품 원칙: 동시성·분산 안전성 렌즈 (2026-04-24 ~)
 - **결정:** 모든 설계는 단일 Pod 가정과 멀티 Pod 마이그레이션 경로를 명시한다. 새 스펙마다 "Concurrency & Distribution Analysis" 섹션 필수
 - **Why:**

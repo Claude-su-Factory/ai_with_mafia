@@ -212,6 +212,22 @@
 
 ---
 
+## DB 스키마 정책 (MANDATORY)
+
+이 프로젝트는 **자동 마이그레이션 도구를 사용하지 않는다**. 운영·로컬 모두 사람이 `README.md` 의 DDL 을 보고 `psql` 로 직접 적용한다. 이전에 쓰던 `golang-migrate` 는 제거됨.
+
+**규칙:**
+
+1. **자동 migration 호출 금지** — `RunMigrations` / `migrate.New` / 부팅 시 `m.Up()` 같은 호출을 backend 에 추가하지 않는다
+2. **스키마 변경은 항상 README.md 갱신과 함께** — 새 테이블·컬럼·인덱스는 `README.md` 의 "DB Schema" 섹션에 인라인 반영
+3. **외래 키(FK) 사용 금지** — `FOREIGN KEY` / `REFERENCES` 절대 추가하지 않는다. 이유: ① 멀티 라이터 동시 삽입 시 잠금/대기 비용, ② 분산 환경 (여러 Pod 가 동일 DB 에 INSERT) 에서 cascade 의도와 어긋나는 경합, ③ 무결성은 애플리케이션(트랜잭션·`ON CONFLICT`)에서 책임지는 것이 더 명시적
+4. **무결성 보장은 코드에서** — 예: `GameResultRepository.Save` 가 트랜잭션으로 `game_results` + `game_result_players` 일괄 INSERT, 메트릭은 `INSERT ... ON CONFLICT DO UPDATE SET col = col + EXCLUDED.col`
+5. **재실행 안전성** — 모든 `CREATE TABLE` / `CREATE INDEX` 는 `IF NOT EXISTS` 가드로 작성
+
+이 정책은 ARCHITECTURE.md §4.14 에서 Why/How 로 기록됨.
+
+---
+
 ## 작업 참고사항
 
 ### 언어 · 프레임워크

@@ -49,14 +49,9 @@ func main() {
 	instanceID := uuid.New().String()
 	logger.Info("instance started", zap.String("instance_id", instanceID))
 
-	// --- DB Migrations ---
-	migrationsPath := "migrations"
-	if err := repository.RunMigrations(cfg.Database.DSN, migrationsPath); err != nil {
-		logger.Fatal("db migration failed", zap.Error(err))
-	}
-	logger.Info("migrations applied")
-
 	// --- DB Pool ---
+	// Schema is managed manually via README.md DDL — no automatic migrations.
+	// See repository root README for the table definitions to apply by hand.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
