@@ -43,11 +43,17 @@ cd frontend && npm install && npm run dev
 > - **스키마 변경은 항상 사람이 직접 적용한다** — 이 README 의 DDL 을 갱신하고, psql 등으로 수동 실행
 > - **외래 키(FOREIGN KEY) 사용 금지** — 성능과 분산 환경(여러 Pod 가 동일 DB 에 동시 INSERT 하는 상황)에서의 복잡도 회피. 무결성은 애플리케이션 레이어에서 책임진다
 
-아래 DDL 을 한 번 실행하면 전체 스키마가 만들어진다. 모든 `CREATE TABLE` 은 `IF NOT EXISTS` 가드라 재실행 안전.
+### 전체 DDL — 한 번에 복사 → psql 붙여넣기
 
-### 1) `rooms` — 방 메타데이터
+아래 블록 전체를 복사해서 `psql "postgres://postgres:password@localhost:5432/ai_playground"` 에 붙여넣으면 한 번에 7개 테이블 + 모든 인덱스가 생성된다. 모든 `CREATE TABLE` / `CREATE INDEX` 는 `IF NOT EXISTS` 가드라 재실행 안전.
 
 ```sql
+-- =============================================================================
+-- AI Mafia Game Platform — Full Schema
+-- 정책: FK 금지, IF NOT EXISTS 가드, 사람이 직접 적용
+-- =============================================================================
+
+-- 1) rooms — 방 메타데이터
 CREATE TABLE IF NOT EXISTS rooms (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
@@ -60,16 +66,10 @@ CREATE TABLE IF NOT EXISTS rooms (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_rooms_visibility ON rooms(visibility);
 CREATE INDEX IF NOT EXISTS idx_rooms_join_code  ON rooms(join_code) WHERE join_code IS NOT NULL;
-```
 
-`RoomService` 가 인메모리 primary 로 운영하며 이 테이블은 recovery·재시작 시 복원 용도. 자세한 결정 배경: ARCHITECTURE §4.3.
-
-### 2) `game_results` + `game_result_players` — 게임 결과 이력
-
-```sql
+-- 2) game_results — 종료된 게임 결과 헤더
 CREATE TABLE IF NOT EXISTS game_results (
     id           TEXT PRIMARY KEY,
     room_id      TEXT NOT NULL,
@@ -78,7 +78,9 @@ CREATE TABLE IF NOT EXISTS game_results (
     duration_sec INT  NOT NULL DEFAULT 0,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_game_results_room ON game_results(room_id);
 
+-- 2-1) game_result_players — 게임당 플레이어 역할/생존 결과
 CREATE TABLE IF NOT EXISTS game_result_players (
     id             TEXT PRIMARY KEY,
     game_result_id TEXT NOT NULL,
@@ -89,14 +91,7 @@ CREATE TABLE IF NOT EXISTS game_result_players (
     survived       BOOLEAN NOT NULL DEFAULT FALSE
 );
 
-CREATE INDEX IF NOT EXISTS idx_game_results_room ON game_results(room_id);
-```
-
-`game_result_players.game_result_id` 는 `game_results.id` 를 참조하지만 **FK 는 걸지 않는다** (정책). 무결성은 `GameResultRepository.Save` 트랜잭션이 책임. T21 이후 `game_results.id` ↔ `game_metrics.game_id` 동일 UUID 사용.
-
-### 3) `game_states` — 진행 중 게임 체크포인트
-
-```sql
+-- 3) game_states — 진행 중 게임 체크포인트 (재시작 복원용)
 CREATE TABLE IF NOT EXISTS game_states (
     room_id      TEXT PRIMARY KEY,
     phase        TEXT        NOT NULL,
@@ -105,13 +100,8 @@ CREATE TABLE IF NOT EXISTS game_states (
     night_kills  JSONB       NOT NULL DEFAULT '{}',
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-```
 
-LeaderLock 이 보유한 Pod 가 매 phase 전환마다 직렬화 저장. 프로세스 재시작 시 게임 복원에 사용.
-
-### 4) `ai_histories` — AI 페르소나별 대화 맥락
-
-```sql
+-- 4) ai_histories — AI 페르소나별 대화 맥락 (Anthropic message 배열)
 CREATE TABLE IF NOT EXISTS ai_histories (
     room_id      TEXT        NOT NULL,
     player_id    TEXT        NOT NULL,
@@ -119,26 +109,16 @@ CREATE TABLE IF NOT EXISTS ai_histories (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (room_id, player_id)
 );
-```
 
-Anthropic 메시지 배열 그대로 저장. 다음 게임 또는 recovery 시 prompt cache 와 함께 재로드.
-
-### 5) `users` — Supabase 사용자 ↔ player_id 매핑
-
-```sql
+-- 5) users — Supabase 사용자 (auth_id) ↔ player_id 매핑
 CREATE TABLE IF NOT EXISTS users (
     auth_id      TEXT PRIMARY KEY,
     player_id    TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL DEFAULT '',
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-```
 
-`auth_id` = Supabase JWT 의 `sub` claim. 첫 로그인 시 row 생성, 재로그인은 row 갱신 없음.
-
-### 6) `game_metrics` — Phase A Unit Economics 측정
-
-```sql
+-- 6) game_metrics — Phase A Unit Economics 측정 (game-level 누적 카운터)
 CREATE TABLE IF NOT EXISTS game_metrics (
     game_id                 TEXT PRIMARY KEY,
     room_id                 TEXT NOT NULL,
@@ -161,14 +141,30 @@ CREATE TABLE IF NOT EXISTS game_metrics (
     truncated_turns         INT  NOT NULL DEFAULT 0,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_game_metrics_started_at ON game_metrics(started_at);
 CREATE INDEX IF NOT EXISTS idx_game_metrics_room_id    ON game_metrics(room_id);
 ```
 
-`AddAIUsage` / `IncrementAdImpression` / `RecordQuickMatch` 가 `INSERT ... ON CONFLICT (game_id) DO UPDATE SET col = col + EXCLUDED.col` 으로 멀티 라이터에 안전하게 누적. Lobby impression 은 일별 sentinel 키 `lobby-YYYY-MM-DD` (room_id = `'lobby'`).
+### 테이블별 용도 요약
 
-자세한 설계: [`docs/superpowers/specs/2026-04-24-phase-a-unit-economics-foundation-design.md`](docs/superpowers/specs/2026-04-24-phase-a-unit-economics-foundation-design.md) §3-D.
+| # | 테이블 | 용도 | 관련 코드/문서 |
+|---|--------|------|----------------|
+| 1 | `rooms` | 방 메타데이터. RoomService 인메모리 primary 의 recovery 용 | ARCHITECTURE §4.3 |
+| 2 | `game_results` + `game_result_players` | 종료된 게임 결과 (승자·라운드·플레이어 역할 공개) | `GameResultRepository.Save` 가 단일 트랜잭션 — FK 없이 무결성 보장 |
+| 3 | `game_states` | 진행 중 게임 체크포인트 — 매 phase 전환 직렬화 | LeaderLock Pod 만 기록, 재시작 복원 |
+| 4 | `ai_histories` | AI 페르소나별 Anthropic message 배열 보관 | 다음 게임 / recovery 시 prompt cache 와 함께 재로드 |
+| 5 | `users` | Supabase JWT `sub` ↔ 내부 `player_id` 매핑 | 첫 로그인 시 row 생성, 재로그인은 갱신 없음 |
+| 6 | `game_metrics` | Phase A Unit Economics 누적 카운터 (token / impression / quick-match) | `INSERT ... ON CONFLICT DO UPDATE SET col = col + EXCLUDED.col` 으로 멀티 라이터 안전. Lobby impression 은 sentinel 키 `lobby-YYYY-MM-DD`. 상세: [`docs/superpowers/specs/2026-04-24-phase-a-unit-economics-foundation-design.md`](docs/superpowers/specs/2026-04-24-phase-a-unit-economics-foundation-design.md) §3-D |
+
+### 한 번에 적용하는 cli one-liner
+
+DDL 을 별도 파일에 저장하지 않고 바로 적용하고 싶다면, 위 SQL 블록을 헤어보드 클립보드로 복사한 뒤:
+
+```bash
+pbpaste | psql "postgres://postgres:password@localhost:5432/ai_playground"
+```
+
+(macOS 기준 `pbpaste` 사용. Linux 는 `xclip -o` 또는 `wl-paste`.)
 
 ---
 
