@@ -95,6 +95,7 @@
 
 ## 최근 변경 이력 (최신순)
 
+- **2026-04-25** · 불필요한 `.md` 정리: `openspec/` (99 파일, 옛 워크플로우 도구 산출물), `ui/` (4 파일, frontend 와 별도인 옛 디자인 레퍼런스), `backend/TODOS.md` 삭제. TODOS.md 의 미해결 항목 2건은 ROADMAP T2-7b (Redis pub/sub 재연결) / T2-8 (마피아 합의 실패 UX) 으로 이전. 코드 영향 0건
 - **2026-04-25** · DB 스키마 관리 정책 변경: `golang-migrate` 폐기, `backend/migrations/` 디렉토리 삭제, 자동 migration 코드 제거. 전체 DDL 을 루트 `README.md` "DB Schema" 섹션에 통합. **FK 금지** 규칙을 CLAUDE.md / ARCHITECTURE §4.14 에 영구 등록 (운영 편의 + 분산 환경 무결성 비용 회피). 사람이 `psql` 로 직접 스키마 적용
 - **2026-04-24** · `503e9ea` Phase A final-review 대응 (T21): game lifecycle `Create`/`Finalize` 훅 연결, `game_results.id` ↔ `game_metrics.game_id` UUID 통일, runbook §5 쿼리 수정(ended_at→created_at, game_id join), I1 (`maxTokensFor` nil-guard) / I2 (`errors.Is(redis.Nil)`) minor fix
 - **2026-04-24** · **Phase A — Unit Economics Foundation 구현 완료** (20 TDD tasks, commits `0e83386`~`2ed76c1`): game_metrics 스키마/Repo, AI prompt cache + max_tokens split + stop_reason 훅, Quick Match join-or-create, Redis-backed ad rate limiter, 3-surface AdBanner. 6개 정량 기준 검증은 로컬 runbook (`_workspace/phase-a-verification.md`) 로 대기

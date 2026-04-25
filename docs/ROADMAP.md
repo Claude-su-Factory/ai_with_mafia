@@ -126,6 +126,21 @@
 - [ ] HTTP 요청 로깅 미들웨어
 - [ ] `/healthz`, `/readyz` 엔드포인트
 
+### T2-7b. 분산 안정성: Redis pub/sub 재연결 회복 로직
+- 현재 `internal/platform/ws/hub.go` 의 `startSubscriber` 가 채널 close (`!ok` branch) 또는 `ctx.Done()` 시 silent exit. 재연결 루프 없음
+- Redis 가 일시 단절(네트워크 blip / Redis 재시작)되면 모든 인스턴스가 cross-instance WS 이벤트 릴레이를 멈춤 → 다른 인스턴스 플레이어들이 게임 이벤트를 못 보게 됨
+- **수정**: outer loop 에 reconnect-with-exponential-backoff (최대 ~30s) 추가. 진정한 종료 신호는 `ctx.Done()` 만; 채널 close 는 재시도. `PSubscribe(ctx, "room:*")` 다시 호출
+- **4축 영향**: 비용 ―, 수익 ―, 리텐션 ⬆ (멀티 인스턴스 환경 게임 안정성), 인간 밀도 ―
+- **현재 우선순위**: 단일 Pod 단계에서는 N/A. 멀티 Pod 이전 시 필수 (ARCHITECTURE §4.3, §4.13 참조)
+- **출처**: `backend/TODOS.md` TODO-2 (2026-04-25 정리 시 이전)
+
+### T2-8. 게임 UX: 마피아 합의 실패 시 `night_result` 이벤트
+- 현재 `internal/games/mafia/phases.go` 의 `processMafiaKill` 가 마피아 투표 합의 실패 시 silently 종료 → 플레이어가 "왜 아무도 안 죽었지?" 로 혼란. 특히 첫 라운드 신규 플레이어에게 합의 메커닉이 가려짐
+- **수정**: `processMafiaKill` 의 fall-through 경로에 `EventNightAction` (또는 `EventKill`) emit 추가, payload `reason: "no_consensus"`. 프론트 `gameStore.ts` 의 `night_action` 케이스에서 시스템 메시지 ("마피아가 합의에 실패하여 밤 사이 아무 일도 일어나지 않았습니다") 표시
+- **트레이드오프**: 시민에게 마피아가 분열했다는 약한 정보가 새지만(누가 누구에게 투표했는지는 알 수 없음), UX 명확성 가치가 더 큼
+- **4축 영향**: 비용 ―, 수익 ―, 리텐션 ⬆ (UX 명확성), 인간 밀도 ―
+- **출처**: `backend/TODOS.md` TODO-1 (2026-04-25 정리 시 이전)
+
 ---
 
 ## Tier 3 · 성장·최적화
